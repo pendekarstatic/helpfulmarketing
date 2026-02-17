@@ -357,9 +357,15 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
     }
   };
 
+  const MAX_PROMPT_LENGTH = 2000;
+
   const handleAiGenerate = async () => {
     if (!aiPrompt.trim()) {
       toast({ title: "Please describe the website you want to generate", variant: "destructive" });
+      return;
+    }
+    if (aiPrompt.length > MAX_PROMPT_LENGTH) {
+      toast({ title: "Prompt too long", description: `Please keep your prompt under ${MAX_PROMPT_LENGTH} characters.`, variant: "destructive" });
       return;
     }
     if (!aiApiKey.trim()) {
@@ -418,6 +424,10 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
 
   const handleFollowUp = async () => {
     if (!followUpInput.trim() || aiGenerating) return;
+    if (followUpInput.length > MAX_PROMPT_LENGTH) {
+      toast({ title: "Input too long", description: `Please keep your input under ${MAX_PROMPT_LENGTH} characters.`, variant: "destructive" });
+      return;
+    }
 
     setAiGenerating(true);
     setAiStreamingText("");
