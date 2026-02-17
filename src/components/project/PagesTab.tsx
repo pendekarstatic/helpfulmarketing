@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { FileText, Eye, Trash2, Wand2, Edit, Save, ChevronDown, ChevronUp, ExternalLink, RefreshCw } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
+import { spinText } from "@/lib/spintax";
 
 interface PagesTabProps {
   projectId: string;
@@ -254,6 +255,9 @@ export default function PagesTab({ projectId }: PagesTabProps) {
             if (headerHtml) html = html.replace("<body>", `<body>\n${headerHtml}`);
             if (footerHtml) html = html.replace("</body>", `${footerHtml}\n</body>`);
           }
+
+          // Process spintax in HTML content
+          html = spinText(html);
 
           // Inject ALL_LISTINGS data for recommendations/SRP dynamic rendering
           const listingsJson = JSON.stringify(allRows.map(r => ({
