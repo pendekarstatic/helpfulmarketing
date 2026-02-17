@@ -11,9 +11,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Upload, Trash2, RefreshCw, Eye, Database, Edit, Save, Link, Webhook, PenLine } from "lucide-react";
+import { Plus, Upload, Trash2, RefreshCw, Eye, Database, Edit, Save, Link, Webhook, PenLine, Sparkles } from "lucide-react";
 import Papa from "papaparse";
 import type { Json } from "@/integrations/supabase/types";
+import { SAMPLE_HOTEL_DATA, SAMPLE_DATA_SOURCE_NAME } from "@/lib/sample-data";
 
 interface DataSourcesTabProps {
   projectId: string;
@@ -232,6 +233,16 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
         </div>
         <div className="flex gap-2 flex-wrap">
           <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleCsvUpload} />
+          <Button variant="outline" size="sm" onClick={() => {
+            createSource.mutate({
+              name: SAMPLE_DATA_SOURCE_NAME,
+              source_type: "csv",
+              config: { manual: true, sample: true },
+              cached_data: SAMPLE_HOTEL_DATA,
+            });
+          }} disabled={createSource.isPending}>
+            <Sparkles className="h-4 w-4 mr-1" /> Load Sample
+          </Button>
           <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
             <Upload className="h-4 w-4 mr-1" /> CSV
           </Button>

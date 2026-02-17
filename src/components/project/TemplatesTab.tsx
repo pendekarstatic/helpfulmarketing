@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, FileCode, Trash2, Edit, Copy, BookTemplate, Sparkles, Filter, Combine } from "lucide-react";
 import TemplateEditor from "./TemplateEditor";
 import type { Database } from "@/integrations/supabase/types";
+import { SAMPLE_HOTEL_DATA, SAMPLE_DATA_SOURCE_NAME } from "@/lib/sample-data";
 
 type TemplateType = Database["public"]["Enums"]["template_type"];
 
@@ -292,7 +293,7 @@ const BUILTIN_TEMPLATES: Record<string, { name: string; type: TemplateType; html
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{mpg_hotel_name}} — Hotels Directory</title>
+  <title>{{hotel_name}} — Hotels Directory</title>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:system-ui,sans-serif;background:#f4f4f4;color:#1e293b}
@@ -313,53 +314,35 @@ const BUILTIN_TEMPLATES: Record<string, { name: string; type: TemplateType; html
     .section p{font-size:1rem;color:#555;line-height:1.8}
     .cta{display:inline-block;background:#303a9e;color:white;padding:0.875rem 2rem;border-radius:50px;text-decoration:none;font-weight:600;font-size:1.1rem}
     .cta:hover{opacity:0.9}
-    .related{background:#e9f1f7;border-radius:15px;padding:3rem 2rem;margin:2rem 0}
-    .related h2{font-size:1.75rem;text-align:center;color:#303a9e;margin-bottom:0.5rem}
-    .related .subtitle{text-align:center;color:#555;margin-bottom:2rem}
-    .related-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.5rem}
-    .related-card{background:white;border-radius:10px;padding:1.25rem;box-shadow:0 4px 12px rgba(0,0,0,0.05);text-align:center}
-    .related-card img{width:100%;height:200px;object-fit:cover;border-radius:10px;margin-bottom:0.75rem}
-    .related-card h3{font-size:1.1rem;font-weight:bold;margin-bottom:0.25rem}
-    .related-card .meta{color:#777;font-size:0.875rem;margin-bottom:0.5rem}
-    .related-card .price{color:#303a9e;font-size:1.1rem;font-weight:600}
     .footer{text-align:center;padding:2rem;color:#94a3b8;font-size:0.8rem;border-top:1px solid #e2e8f0}
   </style>
 </head>
 <body>
   <div class="header"><a href="/">← Home</a> &nbsp; <strong>Hotels</strong></div>
   <div class="container">
-    <h1>{{mpg_hotel_name}}</h1>
-    <p class="location">{{mpg_address}}, {{mpg_country}}</p>
-    <img class="hero-img" src="{{mpg_photo_url}}" alt="{{mpg_hotel_name}}" onerror="this.src='https://images.unsplash.com/photo-1566073771259-6a8506099945?w=900'" />
+    <h1>{{hotel_name}}</h1>
+    <p class="location">{{address}}, {{country}}</p>
+    <img class="hero-img" src="{{photo_url}}" alt="{{hotel_name}}" onerror="this.src='https://images.unsplash.com/photo-1566073771259-6a8506099945?w=900'" />
     <div class="rating-box">
-      <span class="rating-big">{{mpg_rating}} / 5</span>
-      <span class="rating-sub">based on {{mpg_number_of_reviews}} reviews</span>
+      <span class="rating-big">{{rating}} / 5</span>
+      <span class="rating-sub">based on {{number_of_reviews}} reviews</span>
     </div>
     <div class="details-grid">
-      <div class="detail-item"><h3>💰 Price per Night</h3><p>\${{mpg_price_per_night_usd}} USD</p></div>
-      <div class="detail-item"><h3>⭐ Hotel Stars</h3><p>{{mpg_stars}} Stars</p></div>
-      <div class="detail-item"><h3>📏 Distance</h3><p>{{mpg_distance_from_closest_hotel_km}} km</p></div>
-      <div class="detail-item"><h3>📅 Built Date</h3><p>{{mpg_built_date}}</p></div>
-      <div class="detail-item"><h3>🗣️ Languages</h3><p>{{mpg_languages_spoken}}</p></div>
-      <div class="detail-item"><h3>🛎️ Services</h3><p>{{mpg_hotel_services}}</p></div>
+      <div class="detail-item"><h3>💰 Price per Night</h3><p>\${{price_per_night}} USD</p></div>
+      <div class="detail-item"><h3>⭐ Hotel Stars</h3><p>{{stars}} Stars</p></div>
+      <div class="detail-item"><h3>🗣️ Languages</h3><p>{{languages_spoken}}</p></div>
+      <div class="detail-item"><h3>🛎️ Services</h3><p>{{hotel_services}}</p></div>
     </div>
     <div class="section">
       <h3>🏊 Property Amenities</h3>
-      <p>{{mpg_amenities}}</p>
+      <p>{{amenities}}</p>
     </div>
     <div class="section">
       <h3>ℹ️ About</h3>
-      <p>{{mpg_description}}</p>
+      <p>{{description}}</p>
     </div>
     <div style="text-align:center;margin-bottom:3rem">
-      <a class="cta" href="{{mpg_url}}">Visit Hotel Website</a>
-    </div>
-    <div class="related">
-      <h2>Hotels with {{mpg_stars}} Stars</h2>
-      <p class="subtitle">Explore other hotels with the same star rating.</p>
-      <div class="related-grid">
-        <!-- Related hotels would be injected here in a full implementation -->
-      </div>
+      <a class="cta" href="{{url}}">Visit Hotel Website</a>
     </div>
   </div>
   <div class="footer">© Hotels Directory</div>
@@ -698,6 +681,52 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={async () => {
+            // Load sample: create data source + 3 templates (LDP, SRP, Category SRP)
+            try {
+              // 1. Create sample data source if none exists
+              const { data: existingSources } = await supabase.from("data_sources").select("id").eq("project_id", projectId).eq("name", SAMPLE_DATA_SOURCE_NAME);
+              if (!existingSources || existingSources.length === 0) {
+                await supabase.from("data_sources").insert({
+                  project_id: projectId,
+                  name: SAMPLE_DATA_SOURCE_NAME,
+                  source_type: "csv" as any,
+                  config: { manual: true, sample: true } as any,
+                  cached_data: SAMPLE_HOTEL_DATA as any,
+                  last_synced_at: new Date().toISOString(),
+                });
+              }
+              // 2. Create 3 sample templates
+              const sampleTemplates = [
+                { key: "hotel_ldp", label: "Hotel Detail Page (LDP)" },
+                { key: "hotel_srp", label: "Hotels Search Results (SRP)" },
+                { key: "category_srp", label: "Category Directory (SRP)" },
+              ];
+              for (const st of sampleTemplates) {
+                const builtin = BUILTIN_TEMPLATES[st.key];
+                if (builtin) {
+                  await supabase.from("templates").insert({
+                    project_id: projectId,
+                    user_id: user!.id,
+                    name: builtin.name,
+                    template_type: builtin.type,
+                    html_content: builtin.html,
+                    url_pattern: builtin.urlPattern,
+                    schema_type: builtin.schemaType,
+                    meta_title_pattern: "{{title}} — {{site_name}}",
+                    meta_description_pattern: "{{description}}",
+                  });
+                }
+              }
+              queryClient.invalidateQueries({ queryKey: ["templates", projectId] });
+              queryClient.invalidateQueries({ queryKey: ["data-sources", projectId] });
+              toast({ title: "Sample loaded!", description: "8 hotel rows + 3 templates (LDP, SRP, Category SRP) added." });
+            } catch (err: any) {
+              toast({ title: "Error loading sample", description: err.message, variant: "destructive" });
+            }
+          }}>
+            <Sparkles className="h-4 w-4 mr-1" /> Load Sample
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setLibraryOpen(true)}>
             <BookTemplate className="h-4 w-4 mr-1" /> Library
           </Button>

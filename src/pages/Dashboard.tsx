@@ -163,7 +163,7 @@ export default function Dashboard() {
             <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <h1 className="text-xl font-bold tracking-tight">PageForge</h1>
+            <h1 className="text-xl font-bold tracking-tight">Helpful Marketing Website</h1>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground hidden sm:block">{user?.email}</span>

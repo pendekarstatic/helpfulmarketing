@@ -15,7 +15,7 @@ export default function Guide() {
             <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <h1 className="text-xl font-bold tracking-tight">PageForge Guide</h1>
+            <h1 className="text-xl font-bold tracking-tight">HMW Guide</h1>
           </div>
           <Button onClick={() => navigate("/dashboard")}>
             Dashboard <ArrowRight className="h-4 w-4 ml-1" />
@@ -26,9 +26,9 @@ export default function Guide() {
       <main className="container py-8 max-w-4xl space-y-10">
         {/* Intro */}
         <section className="space-y-4">
-          <h2 className="text-3xl font-bold">Welcome to PageForge 🚀</h2>
+          <h2 className="text-3xl font-bold">Welcome to Helpful Marketing Website 🚀</h2>
           <p className="text-lg text-muted-foreground leading-relaxed">
-            PageForge lets you generate hundreds (or thousands!) of SEO-optimized pages from a simple spreadsheet. 
+            Helpful Marketing Website lets you generate hundreds (or thousands!) of SEO-optimized pages from a simple spreadsheet.
             Whether you're building a directory, running pSEO campaigns, or creating a hybrid site — this guide will walk you through everything.
           </p>
         </section>

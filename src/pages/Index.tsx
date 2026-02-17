@@ -1,99 +1,129 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Globe, Layers, Zap, ArrowRight, Code, Download, Search } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowRight, Database, Code, Download, Search, BarChart3, FileText, Sparkles } from "lucide-react";
 
 export default function Index() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Nav */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container flex items-center justify-between h-16">
-          <h1 className="text-xl font-bold tracking-tight">PageForge</h1>
-          <Button onClick={() => navigate(user ? "/dashboard" : "/auth")}>
-            {user ? "Dashboard" : "Get Started"} <ArrowRight className="h-4 w-4 ml-1" />
-          </Button>
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Sticky nav */}
+      <header className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-lg">
+        <div className="container flex items-center justify-between h-14">
+          <span className="font-mono text-sm font-bold tracking-widest uppercase text-primary">HMW</span>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/guide")}>
+              Docs
+            </Button>
+            <Button size="sm" onClick={() => navigate(user ? "/dashboard" : "/auth")}>
+              {user ? "Open App" : "Get Started"}
+            </Button>
+          </div>
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="container py-24 md:py-32 text-center">
-        <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
-          <h2 className="text-5xl md:text-6xl font-bold tracking-tight leading-tight">
-            Build SEO sites from{" "}
-            <span className="text-primary">spreadsheets</span>
-          </h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Connect Google Sheets, design with custom HTML templates, and export fully optimized directory & pSEO pages — no code required.
+      {/* Hero — asymmetric two-column */}
+      <section className="container grid lg:grid-cols-5 gap-12 py-20 lg:py-28">
+        <div className="lg:col-span-3 space-y-8">
+          <Badge variant="secondary" className="text-xs font-mono tracking-wider">
+            pSEO · Directories · Static Export
+          </Badge>
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1]">
+            Turn any spreadsheet into an
+            <span className="block text-primary mt-1">SEO-powered website</span>
+          </h1>
+          <p className="text-lg text-muted-foreground max-w-xl leading-relaxed">
+            Connect Google Sheets or upload CSV. Design HTML templates with variables. 
+            Generate hundreds of optimized pages and export as static HTML — zero code needed.
           </p>
-          <div className="flex gap-3 justify-center pt-4">
-            <Button size="lg" onClick={() => navigate(user ? "/dashboard" : "/auth")}>
-              Start Building <ArrowRight className="h-4 w-4 ml-1" />
+          <div className="flex flex-wrap gap-3">
+            <Button size="lg" className="gap-2" onClick={() => navigate(user ? "/dashboard" : "/auth")}>
+              Start Free <ArrowRight className="h-4 w-4" />
             </Button>
             <Button size="lg" variant="outline" onClick={() => navigate("/guide")}>
-              📖 Guide
+              Read the Guide
             </Button>
+          </div>
+        </div>
+        <div className="lg:col-span-2 hidden lg:flex items-center justify-center">
+          <div className="relative w-full aspect-square max-w-sm">
+            {/* Decorative abstract grid */}
+            <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-2">
+              {[
+                "bg-primary/20", "bg-primary/10", "bg-primary/5",
+                "bg-primary/5", "bg-primary/30", "bg-primary/10",
+                "bg-primary/15", "bg-primary/5", "bg-primary/20",
+              ].map((bg, i) => (
+                <div key={i} className={`${bg} rounded-xl flex items-center justify-center`}>
+                  {i === 1 && <Database className="h-6 w-6 text-primary/60" />}
+                  {i === 4 && <Sparkles className="h-8 w-8 text-primary" />}
+                  {i === 7 && <FileText className="h-6 w-6 text-primary/60" />}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="container pb-24">
-        <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-          <FeatureCard
-            icon={<Layers className="h-6 w-6" />}
-            title="Directory Builder"
-            desc="Listing pages, category hubs, location pages, and filterable search — all auto-generated."
-          />
-          <FeatureCard
-            icon={<Zap className="h-6 w-6" />}
-            title="pSEO at Scale"
-            desc="Generate 'Best X in Y', comparison, and location-modifier pages from your data."
-          />
-          <FeatureCard
-            icon={<Code className="h-6 w-6" />}
-            title="Custom HTML"
-            desc="Full Monaco editor with {{variable}} injection. Complete control over every page."
-          />
-          <FeatureCard
-            icon={<Globe className="h-6 w-6" />}
-            title="SEO Engine"
-            desc="Auto meta tags, JSON-LD, sitemaps, internal linking, and SERP previews."
-          />
-          <FeatureCard
-            icon={<Download className="h-6 w-6" />}
-            title="Static Export"
-            desc="Download a ZIP with all HTML pages, CSS, and sitemap.xml. Host anywhere."
-          />
-          <FeatureCard
-            icon={<Search className="h-6 w-6" />}
-            title="Search & Filter"
-            desc="Built-in search, category filters, and sort options for generated directories."
-          />
+      {/* Workflow strip */}
+      <section className="border-y bg-muted/30">
+        <div className="container py-12">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-border rounded-2xl overflow-hidden">
+            {[
+              { num: "01", icon: <Database className="h-5 w-5" />, label: "Add Data", sub: "CSV, Google Sheets, or manual entry" },
+              { num: "02", icon: <Code className="h-5 w-5" />, label: "Design Templates", sub: "HTML + {{variables}} in Monaco Editor" },
+              { num: "03", icon: <BarChart3 className="h-5 w-5" />, label: "Generate Pages", sub: "Normal, Split, or Combo modes" },
+              { num: "04", icon: <Download className="h-5 w-5" />, label: "Export & Deploy", sub: "ZIP with HTML, sitemaps, robots.txt" },
+            ].map((step) => (
+              <div key={step.num} className="bg-background p-6 space-y-3">
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-xs text-muted-foreground">{step.num}</span>
+                  <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                    {step.icon}
+                  </div>
+                </div>
+                <h3 className="font-semibold">{step.label}</h3>
+                <p className="text-sm text-muted-foreground">{step.sub}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Capabilities — stacked cards */}
+      <section className="container py-20 space-y-6">
+        <div className="max-w-2xl">
+          <h2 className="text-3xl font-bold tracking-tight">Everything you need for programmatic SEO</h2>
+          <p className="text-muted-foreground mt-2">From data ingestion to static export — one workflow, no dependencies.</p>
+        </div>
+        <div className="grid md:grid-cols-2 gap-4">
+          {[
+            { icon: <Search className="h-5 w-5" />, title: "SEO Engine", desc: "Auto meta tags, Open Graph, JSON-LD structured data, canonical URLs, and XML sitemaps with 50K URL limit." },
+            { icon: <FileText className="h-5 w-5" />, title: "Page Types", desc: "Listing Detail Pages, Search Result Pages, Category Hubs, Best-X-in-Y, Comparisons, and Glossary pages." },
+            { icon: <Code className="h-5 w-5" />, title: "Full HTML Control", desc: "Monaco editor with syntax highlighting, variable injection, live preview, and AI-assisted template generation." },
+            { icon: <Download className="h-5 w-5" />, title: "Static Export", desc: "Download a production-ready ZIP with all HTML, shared CSS/JS assets, sitemaps, and robots.txt. Host anywhere." },
+          ].map((item) => (
+            <div key={item.title} className="group rounded-xl border bg-card p-6 space-y-3 hover:border-primary/30 transition-colors">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                {item.icon}
+              </div>
+              <h3 className="font-semibold">{item.title}</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
+            </div>
+          ))}
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t py-8">
-        <div className="container text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} PageForge. Built for SEO builders.
+      <footer className="border-t py-6">
+        <div className="container flex items-center justify-between text-xs text-muted-foreground">
+          <span>© {new Date().getFullYear()} Helpful Marketing Website</span>
+          <span className="font-mono">Built for SEO builders</span>
         </div>
       </footer>
-    </div>
-  );
-}
-
-function FeatureCard({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
-  return (
-    <div className="rounded-lg border bg-card p-6 space-y-3 hover:shadow-md transition-shadow">
-      <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-        {icon}
-      </div>
-      <h3 className="font-semibold text-lg">{title}</h3>
-      <p className="text-sm text-muted-foreground">{desc}</p>
     </div>
   );
 }
