@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Globe, Layers, Zap } from "lucide-react";
+import { Globe, Layers, Zap, ArrowLeft } from "lucide-react";
 
 export default function Auth() {
   const { signIn, signUp, resetPassword, user } = useAuth();
@@ -97,6 +97,9 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen flex">
+      <Button variant="ghost" size="icon" className="absolute top-4 left-4 z-10" onClick={() => navigate("/")}>
+        <ArrowLeft className="h-4 w-4" />
+      </Button>
       {/* Left branding panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-primary/5 flex-col justify-center p-12">
         <div className="max-w-md mx-auto space-y-8 animate-fade-in">

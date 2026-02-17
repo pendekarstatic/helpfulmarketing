@@ -9,8 +9,9 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Upload, Link, Trash2, RefreshCw, Eye, Database } from "lucide-react";
+import { Plus, Upload, Trash2, RefreshCw, Eye, Database, Edit, Save, Link, Webhook, PenLine } from "lucide-react";
 import Papa from "papaparse";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -22,10 +23,15 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
+  const [addType, setAddType] = useState<string>("published_url");
   const [previewSource, setPreviewSource] = useState<string | null>(null);
+  const [mappingSource, setMappingSource] = useState<string | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualRows, setManualRows] = useState<Record<string, string>[]>([{ title: "", description: "", category: "", location: "" }]);
+  const [editingRow, setEditingRow] = useState<{ sourceId: string; rowIndex: number; data: Record<string, string> } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: sources = [], isLoading } = useQuery({
+  const { data: sources = [] } = useQuery({
     queryKey: ["data-sources", projectId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -53,9 +59,21 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["data-sources", projectId] });
       setAddOpen(false);
+      setManualOpen(false);
       toast({ title: "Data source added!" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const updateSource = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: any }) => {
+      const { error } = await supabase.from("data_sources").update(updates).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["data-sources", projectId] });
+      toast({ title: "Data source updated!" });
+    },
   });
 
   const deleteSource = useMutation({
@@ -74,13 +92,10 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
       if (source.source_type === "published_url") {
         const url = source.config?.url;
         if (!url) throw new Error("No URL configured");
-        // Convert Google Sheets URL to CSV export
         let csvUrl = url;
         if (url.includes("docs.google.com/spreadsheets")) {
           const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-          if (match) {
-            csvUrl = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv`;
-          }
+          if (match) csvUrl = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv`;
         }
         const res = await fetch(csvUrl);
         const text = await res.text();
@@ -115,6 +130,7 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
       },
       error: (err) => toast({ title: "Parse error", description: err.message, variant: "destructive" }),
     });
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleSheetUrl = (e: React.FormEvent<HTMLFormElement>) => {
@@ -122,111 +138,188 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
     const form = new FormData(e.currentTarget);
     const url = form.get("url") as string;
     const name = form.get("name") as string || "Google Sheet";
-
-    // Immediately fetch
     let csvUrl = url;
     if (url.includes("docs.google.com/spreadsheets")) {
       const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-      if (match) {
-        csvUrl = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv`;
-      }
+      if (match) csvUrl = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv`;
     }
-
     fetch(csvUrl)
       .then((res) => res.text())
       .then((text) => {
         const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
-        createSource.mutate({
-          name,
-          source_type: "published_url",
-          config: { url },
-          cached_data: parsed.data,
-        });
+        createSource.mutate({ name, source_type: "published_url", config: { url }, cached_data: parsed.data });
       })
       .catch((err) => toast({ title: "Fetch failed", description: err.message, variant: "destructive" }));
   };
 
-  const previewData = previewSource
-    ? sources.find((s) => s.id === previewSource)
-    : null;
+  const handleWebhook = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const name = form.get("name") as string || "Webhook";
+    const webhookUrl = `${window.location.origin}/api/webhook/${projectId}`;
+    createSource.mutate({
+      name,
+      source_type: "apps_script_webhook",
+      config: { webhook_url: webhookUrl },
+    });
+  };
+
+  const handleManualEntry = () => {
+    const validRows = manualRows.filter((r) => Object.values(r).some((v) => v.trim()));
+    if (validRows.length === 0) {
+      toast({ title: "Add at least one row", variant: "destructive" });
+      return;
+    }
+    createSource.mutate({
+      name: "Manual Entry",
+      source_type: "csv",
+      config: { manual: true },
+      cached_data: validRows,
+    });
+  };
+
+  const handleSaveColumnMapping = (sourceId: string, mapping: Record<string, string>) => {
+    updateSource.mutate({
+      id: sourceId,
+      updates: { column_mapping: mapping as unknown as Json },
+    });
+    setMappingSource(null);
+  };
+
+  const handleEditRow = () => {
+    if (!editingRow) return;
+    const source = sources.find((s) => s.id === editingRow.sourceId);
+    if (!source || !Array.isArray(source.cached_data)) return;
+    const rows = [...(source.cached_data as any[])];
+    rows[editingRow.rowIndex] = editingRow.data;
+    updateSource.mutate({
+      id: editingRow.sourceId,
+      updates: { cached_data: rows as unknown as Json },
+    });
+    setEditingRow(null);
+  };
+
+  const previewData = previewSource ? sources.find((s) => s.id === previewSource) : null;
   const previewRows = (previewData?.cached_data as any[] | null) ?? [];
   const previewColumns = previewRows.length > 0 ? Object.keys(previewRows[0]) : [];
+
+  const mappingData = mappingSource ? sources.find((s) => s.id === mappingSource) : null;
+  const mappingColumns = mappingData && Array.isArray(mappingData.cached_data) && (mappingData.cached_data as any[]).length > 0
+    ? Object.keys((mappingData.cached_data as any[])[0])
+    : [];
+  const [columnMap, setColumnMap] = useState<Record<string, string>>({});
+  const TEMPLATE_FIELDS = ["title", "description", "category", "location", "image", "url", "price", "rating", "tags", "slug"];
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-xl font-semibold">Data Sources</h3>
-          <p className="text-sm text-muted-foreground">Connect spreadsheets or upload CSV files</p>
+          <p className="text-sm text-muted-foreground">Connect spreadsheets, upload CSV, or enter data manually</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleCsvUpload} />
-          <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-            <Upload className="h-4 w-4 mr-1" /> Upload CSV
+          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+            <Upload className="h-4 w-4 mr-1" /> CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setManualOpen(true)}>
+            <PenLine className="h-4 w-4 mr-1" /> Manual
           </Button>
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger asChild>
-              <Button><Plus className="h-4 w-4 mr-1" /> Add Sheet URL</Button>
+              <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Connect</Button>
             </DialogTrigger>
             <DialogContent>
-              <form onSubmit={handleSheetUrl}>
+              <Tabs value={addType} onValueChange={setAddType}>
                 <DialogHeader>
-                  <DialogTitle>Connect Google Sheet</DialogTitle>
+                  <DialogTitle>Connect Data Source</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label>Name</Label>
-                    <Input name="name" placeholder="My Sheet" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Published Sheet URL</Label>
-                    <Input name="url" required placeholder="https://docs.google.com/spreadsheets/d/..." />
-                    <p className="text-xs text-muted-foreground">Paste a public Google Sheets URL or any CSV URL</p>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button type="submit" disabled={createSource.isPending}>
-                    {createSource.isPending ? "Connecting..." : "Connect"}
-                  </Button>
-                </DialogFooter>
-              </form>
+                <TabsList className="w-full mt-2">
+                  <TabsTrigger value="published_url" className="flex-1 gap-1"><Link className="h-3 w-3" /> Sheet URL</TabsTrigger>
+                  <TabsTrigger value="apps_script_webhook" className="flex-1 gap-1"><Webhook className="h-3 w-3" /> Webhook</TabsTrigger>
+                </TabsList>
+                <TabsContent value="published_url">
+                  <form onSubmit={handleSheetUrl} className="space-y-4 pt-2">
+                    <div className="space-y-2">
+                      <Label>Name</Label>
+                      <Input name="name" placeholder="My Sheet" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Published Sheet URL</Label>
+                      <Input name="url" required placeholder="https://docs.google.com/spreadsheets/d/..." />
+                      <p className="text-xs text-muted-foreground">Paste a public Google Sheets URL or any CSV URL</p>
+                    </div>
+                    <DialogFooter>
+                      <Button type="submit" disabled={createSource.isPending}>
+                        {createSource.isPending ? "Connecting..." : "Connect"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </TabsContent>
+                <TabsContent value="apps_script_webhook">
+                  <form onSubmit={handleWebhook} className="space-y-4 pt-2">
+                    <div className="space-y-2">
+                      <Label>Name</Label>
+                      <Input name="name" placeholder="Apps Script Webhook" />
+                    </div>
+                    <div className="space-y-2 rounded-md bg-muted p-3">
+                      <p className="text-xs text-muted-foreground">After creating, you'll get a webhook URL. Configure your Apps Script to POST JSON data to this endpoint.</p>
+                    </div>
+                    <DialogFooter>
+                      <Button type="submit" disabled={createSource.isPending}>Create Webhook</Button>
+                    </DialogFooter>
+                  </form>
+                </TabsContent>
+              </Tabs>
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
+      {/* Source cards */}
       {sources.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Database className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-1">No data sources yet</h3>
-            <p className="text-muted-foreground mb-4">Upload a CSV or connect a Google Sheet to get started.</p>
+            <p className="text-muted-foreground mb-4">Upload a CSV, connect a Google Sheet, or enter data manually.</p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
           {sources.map((source) => {
             const rowCount = Array.isArray(source.cached_data) ? (source.cached_data as any[]).length : 0;
+            const isWebhook = source.source_type === "apps_script_webhook";
             return (
               <Card key={source.id}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="text-base">{source.name}</CardTitle>
-                      <CardDescription className="flex items-center gap-2 mt-1">
-                        <Badge variant="secondary" className="text-xs capitalize">{source.source_type.replace("_", " ")}</Badge>
+                      <CardDescription className="flex items-center gap-2 mt-1 flex-wrap">
+                        <Badge variant="secondary" className="text-xs capitalize">{source.source_type.replace(/_/g, " ")}</Badge>
                         <span>{rowCount} rows</span>
-                        {source.last_synced_at && (
-                          <span>· Synced {new Date(source.last_synced_at).toLocaleString()}</span>
+                        {source.last_synced_at && <span>· Synced {new Date(source.last_synced_at).toLocaleString()}</span>}
+                        {isWebhook && source.config && (
+                          <code className="text-xs bg-muted px-2 py-0.5 rounded font-mono break-all">
+                            {(source.config as any).webhook_url}
+                          </code>
                         )}
                       </CardDescription>
                     </div>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => setPreviewSource(source.id)}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
+                      {rowCount > 0 && (
+                        <>
+                          <Button variant="ghost" size="icon" title="Preview" onClick={() => setPreviewSource(source.id)}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" title="Column Mapping" onClick={() => { setMappingSource(source.id); setColumnMap((source.column_mapping as Record<string, string>) || {}); }}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
                       {source.source_type === "published_url" && (
-                        <Button variant="ghost" size="icon" onClick={() => refreshSource.mutate(source)} disabled={refreshSource.isPending}>
+                        <Button variant="ghost" size="icon" title="Refresh" onClick={() => refreshSource.mutate(source)} disabled={refreshSource.isPending}>
                           <RefreshCw className={`h-4 w-4 ${refreshSource.isPending ? "animate-spin" : ""}`} />
                         </Button>
                       )}
@@ -242,9 +335,78 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
         </div>
       )}
 
-      {/* Data Preview Dialog */}
+      {/* Manual Entry Dialog */}
+      <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Manual Data Entry</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 max-h-[60vh] overflow-auto">
+            {manualRows.map((row, i) => (
+              <div key={i} className="grid grid-cols-4 gap-2">
+                {Object.keys(row).map((key) => (
+                  <div key={key} className="space-y-1">
+                    <Label className="text-xs">{key}</Label>
+                    <Input
+                      value={row[key]}
+                      onChange={(e) => {
+                        const updated = [...manualRows];
+                        updated[i] = { ...updated[i], [key]: e.target.value };
+                        setManualRows(updated);
+                      }}
+                      className="text-sm"
+                      placeholder={key}
+                    />
+                  </div>
+                ))}
+              </div>
+            ))}
+            <Button variant="outline" size="sm" onClick={() => setManualRows([...manualRows, { title: "", description: "", category: "", location: "" }])}>
+              <Plus className="h-3 w-3 mr-1" /> Add Row
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleManualEntry} disabled={createSource.isPending}>
+              <Save className="h-4 w-4 mr-1" /> Save Data
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Column Mapping Dialog */}
+      <Dialog open={!!mappingSource} onOpenChange={() => setMappingSource(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Column Mapping — {mappingData?.name}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Map your sheet columns to template fields</p>
+          <div className="space-y-3 py-2">
+            {TEMPLATE_FIELDS.map((field) => (
+              <div key={field} className="flex items-center gap-3">
+                <Label className="w-24 text-sm font-mono">{`{{${field}}}`}</Label>
+                <Select value={columnMap[field] || ""} onValueChange={(v) => setColumnMap({ ...columnMap, [field]: v })}>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder="Select column..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">— None —</SelectItem>
+                    {mappingColumns.map((col) => (
+                      <SelectItem key={col} value={col}>{col}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => mappingSource && handleSaveColumnMapping(mappingSource, columnMap)}>
+              <Save className="h-4 w-4 mr-1" /> Save Mapping
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Data Preview Dialog with inline editing */}
       <Dialog open={!!previewSource} onOpenChange={() => setPreviewSource(null)}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+        <DialogContent className="max-w-5xl max-h-[85vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>Data Preview — {previewData?.name}</DialogTitle>
           </DialogHeader>
@@ -253,19 +415,32 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">#</TableHead>
                     {previewColumns.map((col) => (
                       <TableHead key={col} className="whitespace-nowrap">{col}</TableHead>
                     ))}
+                    <TableHead className="w-16">Edit</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {previewRows.slice(0, 50).map((row: any, i: number) => (
+                  {previewRows.slice(0, 100).map((row: any, i: number) => (
                     <TableRow key={i}>
+                      <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
                       {previewColumns.map((col) => (
-                        <TableCell key={col} className="whitespace-nowrap max-w-[200px] truncate">
+                        <TableCell key={col} className="whitespace-nowrap max-w-[200px] truncate text-sm">
                           {row[col]}
                         </TableCell>
                       ))}
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => setEditingRow({ sourceId: previewSource!, rowIndex: i, data: { ...row } })}
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -274,9 +449,37 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
           ) : (
             <p className="text-muted-foreground py-8 text-center">No data available</p>
           )}
-          {previewRows.length > 50 && (
-            <p className="text-xs text-muted-foreground text-center">Showing first 50 of {previewRows.length} rows</p>
+          {previewRows.length > 100 && (
+            <p className="text-xs text-muted-foreground text-center">Showing first 100 of {previewRows.length} rows</p>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Row Edit Dialog */}
+      <Dialog open={!!editingRow} onOpenChange={() => setEditingRow(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Row #{editingRow ? editingRow.rowIndex + 1 : ""}</DialogTitle>
+          </DialogHeader>
+          {editingRow && (
+            <div className="space-y-3 max-h-[60vh] overflow-auto">
+              {Object.entries(editingRow.data).map(([key, value]) => (
+                <div key={key} className="space-y-1">
+                  <Label className="text-xs font-mono">{key}</Label>
+                  <Input
+                    value={String(value || "")}
+                    onChange={(e) => setEditingRow({ ...editingRow, data: { ...editingRow.data, [key]: e.target.value } })}
+                    className="text-sm"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={handleEditRow}>
+              <Save className="h-4 w-4 mr-1" /> Save Changes
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

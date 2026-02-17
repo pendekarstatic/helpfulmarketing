@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, MoreVertical, Archive, Copy, Trash2, FolderOpen, Globe, Layers, Zap, LogOut } from "lucide-react";
+import { Plus, MoreVertical, Archive, Copy, Trash2, FolderOpen, Globe, Layers, Zap, LogOut, ArrowLeft } from "lucide-react";
 
 type ProjectMode = "pseo" | "directory" | "hybrid";
 
@@ -157,7 +157,12 @@ export default function Dashboard() {
       {/* Header */}
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container flex items-center justify-between h-16">
-          <h1 className="text-xl font-bold tracking-tight">PageForge</h1>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <h1 className="text-xl font-bold tracking-tight">PageForge</h1>
+          </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground hidden sm:block">{user?.email}</span>
             <Button variant="ghost" size="icon" onClick={signOut}>
