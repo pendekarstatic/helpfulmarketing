@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SAMPLE_HOMEPAGE_HTML } from "@/lib/sample-data";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Editor from "@monaco-editor/react";
@@ -11,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Home, FileCode, Trash2, Edit, Eye, Save, ArrowLeft, ExternalLink } from "lucide-react";
+import { Plus, Home, FileCode, Trash2, Edit, Eye, Save, ArrowLeft, ExternalLink, Sparkles } from "lucide-react";
 
 interface CustomPagesTabProps {
   projectId: string;
@@ -23,52 +24,7 @@ const STARTER_TEMPLATES: Record<string, { title: string; slug: string; urlPath: 
     slug: "index",
     urlPath: "/",
     isHomepage: true,
-    html: `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{site_name}} — Home</title>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:system-ui,sans-serif;background:#fafafa;color:#1a1a2e}
-    .hero{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:white;padding:6rem 2rem;text-align:center}
-    .hero h1{font-size:3rem;margin-bottom:1rem;font-weight:800}
-    .hero p{font-size:1.25rem;opacity:0.9;max-width:600px;margin:0 auto 2rem}
-    .hero a{display:inline-block;background:white;color:#1a1a2e;padding:0.75rem 2rem;border-radius:8px;text-decoration:none;font-weight:600}
-    .container{max-width:1200px;margin:0 auto;padding:3rem 2rem}
-    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:2rem}
-    .card{background:white;border-radius:12px;padding:2rem;box-shadow:0 2px 12px rgba(0,0,0,0.06);border:1px solid #e2e8f0}
-    .card h3{font-size:1.25rem;margin-bottom:0.5rem}
-    .card p{color:#64748b;line-height:1.6}
-    .footer{text-align:center;padding:3rem 2rem;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:0.875rem}
-  </style>
-</head>
-<body>
-  <div class="hero">
-    <h1>Welcome to Your Directory</h1>
-    <p>Browse our collection of listings, organized by category and location.</p>
-    <a href="/listings/">Browse All Listings</a>
-  </div>
-  <div class="container">
-    <h2 style="font-size:1.75rem;margin-bottom:1.5rem;text-align:center">Popular Categories</h2>
-    <div class="grid">
-      <div class="card">
-        <h3>🏢 Business</h3>
-        <p>Discover top-rated businesses in your area.</p>
-      </div>
-      <div class="card">
-        <h3>🍽️ Restaurants</h3>
-        <p>Find the best dining options nearby.</p>
-      </div>
-      <div class="card">
-        <h3>🏨 Hotels</h3>
-        <p>Book your perfect stay from our curated collection.</p>
-      </div>
-    </div>
-  </div>
-  <div class="footer">© {{site_name}}</div>
-</body>
-</html>`,
+    html: SAMPLE_HOMEPAGE_HTML,
   },
   listings_hub: {
     title: "All Listings",
@@ -366,6 +322,12 @@ export default function CustomPagesTab({ projectId }: CustomPagesTabProps) {
           <p className="text-sm text-muted-foreground">Homepage, hub pages (/listings/, /locations/) and other custom HTML pages</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => {
+            const hp = STARTER_TEMPLATES.homepage;
+            createPage.mutate({ title: hp.title, slug: hp.slug, url_path: hp.urlPath, html_content: hp.html, is_homepage: hp.isHomepage });
+          }} disabled={createPage.isPending}>
+            <Sparkles className="h-4 w-4 mr-1" /> Load Sample Homepage
+          </Button>
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger asChild>
               <Button size="sm"><Plus className="h-4 w-4 mr-1" /> New Page</Button>
