@@ -14,6 +14,65 @@ export type Database = {
   }
   public: {
     Tables: {
+      custom_pages: {
+        Row: {
+          created_at: string
+          css_content: string | null
+          html_content: string
+          id: string
+          is_homepage: boolean
+          meta_description: string | null
+          meta_title: string | null
+          project_id: string
+          slug: string
+          sort_order: number
+          status: string
+          title: string
+          updated_at: string
+          url_path: string
+        }
+        Insert: {
+          created_at?: string
+          css_content?: string | null
+          html_content?: string
+          id?: string
+          is_homepage?: boolean
+          meta_description?: string | null
+          meta_title?: string | null
+          project_id: string
+          slug: string
+          sort_order?: number
+          status?: string
+          title: string
+          updated_at?: string
+          url_path?: string
+        }
+        Update: {
+          created_at?: string
+          css_content?: string | null
+          html_content?: string
+          id?: string
+          is_homepage?: boolean
+          meta_description?: string | null
+          meta_title?: string | null
+          project_id?: string
+          slug?: string
+          sort_order?: number
+          status?: string
+          title?: string
+          updated_at?: string
+          url_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_pages_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       data_sources: {
         Row: {
           cached_data: Json | null

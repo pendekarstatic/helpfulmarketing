@@ -399,10 +399,10 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
             {TEMPLATE_FIELDS.map((field) => (
               <div key={field} className="flex items-center gap-3">
                 <Label className="w-24 text-sm font-mono">{`{{${field}}}`}</Label>
-                <Select value={columnMap[field] || ""} onValueChange={(v) => setColumnMap({ ...columnMap, [field]: v })}>
+                <Select value={columnMap[field] || "__none__"} onValueChange={(v) => setColumnMap({ ...columnMap, [field]: v === "__none__" ? "" : v })}>
                   <SelectTrigger className="flex-1"><SelectValue placeholder="Select column..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">— None —</SelectItem>
+                    <SelectItem value="__none__">— None —</SelectItem>
                     {mappingColumns.map((col) => (
                       <SelectItem key={col} value={col}>{col}</SelectItem>
                     ))}

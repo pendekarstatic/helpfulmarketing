@@ -56,6 +56,18 @@ export default function ExportTab({ projectId, project }: ExportTabProps) {
     },
   });
 
+  const { data: customPages = [] } = useQuery({
+    queryKey: ["custom-pages", projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("custom_pages")
+        .select("*")
+        .eq("project_id", projectId);
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const publishedPages = pages.filter((p) => p.status === "published");
   const allPages = pages;
   const urlFormat = project.url_format || "pretty_slash";
@@ -104,7 +116,7 @@ export default function ExportTab({ projectId, project }: ExportTabProps) {
       const zip = new JSZip();
       const pagesToExport = allPages.filter((p) => p.generated_html);
 
-      if (pagesToExport.length === 0) {
+      if (pagesToExport.length === 0 && customPages.length === 0) {
         toast({ title: "No pages to export", description: "Generate pages first.", variant: "destructive" });
         return;
       }
@@ -123,6 +135,20 @@ export default function ExportTab({ projectId, project }: ExportTabProps) {
         }
       }
 
+      // Add custom pages to the export
+      for (const cp of customPages) {
+        if (!cp.html_content) continue;
+        const cpPath = cp.is_homepage ? "index.html" : getExportPath({ url_path: cp.url_path, slug: cp.slug });
+        if (splitAssets) {
+          const { cleanHtml, css, js } = extractAndSplitAssets(cp.html_content);
+          zip.file(cpPath, cleanHtml);
+          globalCss += css;
+          globalJs += js;
+        } else {
+          zip.file(cpPath, cp.html_content);
+        }
+      }
+
       if (splitAssets) {
         if (globalCss.trim()) {
           const uniqueCss = [...new Set(globalCss.split("\n").filter(l => l.trim()))].join("\n");
@@ -134,8 +160,11 @@ export default function ExportTab({ projectId, project }: ExportTabProps) {
         }
       }
 
-      const indexCssLink = splitAssets && globalCss.trim() ? `<link rel="stylesheet" href="/assets/styles.css">` : "";
-      const indexHtml = `<!DOCTYPE html>
+      // Only generate a fallback index.html if no custom homepage exists
+      const hasCustomHomepage = customPages.some(cp => cp.is_homepage);
+      if (!hasCustomHomepage) {
+        const indexCssLink = splitAssets && globalCss.trim() ? `<link rel="stylesheet" href="/assets/styles.css">` : "";
+        const indexHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -160,13 +189,15 @@ export default function ExportTab({ projectId, project }: ExportTabProps) {
   <div class="container">
     <h1>${project.site_name || project.name}</h1>
     <div class="links">
+      ${customPages.filter(cp => !cp.is_homepage).map((cp) => `<a href="${cp.url_path}">${cp.title}</a>`).join("\n      ")}
       ${pagesToExport.map((p) => `<a href="./${getExportPath(p)}">${p.title}</a>`).join("\n      ")}
     </div>
   </div>
   ${project.use_header_footer && project.footer_content ? project.footer_content : ""}
 </body>
 </html>`;
-      zip.file("index.html", indexHtml);
+        zip.file("index.html", indexHtml);
+      }
 
       const domain = getDomain();
 
@@ -343,7 +374,7 @@ ${sitemapFiles.map((f) => `  <sitemap>\n    <loc>${domain}/${f}</loc>\n    <last
             <Button className="w-full" onClick={exportHtmlZip} disabled={exporting === "html"}>
               <Download className="h-4 w-4 mr-1" /> {exporting === "html" ? "Exporting..." : "Download ZIP"}
             </Button>
-            <p className="text-xs text-muted-foreground mt-2">{allPages.length} pages · {separateSitemaps ? "Separate sitemaps" : "Single sitemap"} · Max {maxUrls} URLs</p>
+            <p className="text-xs text-muted-foreground mt-2">{allPages.length} generated + {customPages.length} custom pages · {separateSitemaps ? "Separate sitemaps" : "Single sitemap"} · Max {maxUrls} URLs</p>
           </CardContent>
         </Card>
 

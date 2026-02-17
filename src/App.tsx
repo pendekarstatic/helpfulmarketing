@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import ProjectDetail from "./pages/ProjectDetail";
+import Guide from "./pages/Guide";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route path="/guide" element={<Guide />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

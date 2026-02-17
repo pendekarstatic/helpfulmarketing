@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, MoreVertical, Archive, Copy, Trash2, FolderOpen, Globe, Layers, Zap, LogOut, ArrowLeft, Settings } from "lucide-react";
+import { Plus, MoreVertical, Archive, Copy, Trash2, FolderOpen, Globe, Layers, Zap, LogOut, ArrowLeft, Settings, BookOpen } from "lucide-react";
 import GlobalSettingsDialog from "@/components/dashboard/GlobalSettingsDialog";
 
 type ProjectMode = "pseo" | "directory" | "hybrid";
@@ -184,6 +184,9 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate("/guide")}>
+              <BookOpen className="h-4 w-4 mr-1" /> Guide
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setGlobalSettingsOpen(true)}>
               <Settings className="h-4 w-4 mr-1" /> Defaults
             </Button>
