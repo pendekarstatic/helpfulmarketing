@@ -11,6 +11,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import ProjectDetail from "./pages/ProjectDetail";
 import Guide from "./pages/Guide";
+import SpintaxTool from "./pages/SpintaxTool";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -43,6 +44,7 @@ const App = () => (
               }
             />
             <Route path="/guide" element={<Guide />} />
+            <Route path="/tools/spintax" element={<SpintaxTool />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

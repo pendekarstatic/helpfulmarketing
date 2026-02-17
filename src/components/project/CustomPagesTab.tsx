@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { SAMPLE_HOMEPAGE_HTML } from "@/lib/sample-data";
+import { SAMPLE_HOMEPAGE_HTML, SAMPLE_CONTACT_HTML, SAMPLE_PRIVACY_HTML, SAMPLE_ABOUT_HTML, ESSENTIAL_PAGES, DEFAULT_PAGE_HTML } from "@/lib/sample-data";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Editor from "@monaco-editor/react";
@@ -12,20 +12,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Home, FileCode, Trash2, Edit, Eye, Save, ArrowLeft, ExternalLink, Sparkles } from "lucide-react";
+import { Plus, Home, FileCode, Trash2, Edit, Eye, Save, ArrowLeft, ExternalLink, Sparkles, AlertTriangle } from "lucide-react";
 
 interface CustomPagesTabProps {
   projectId: string;
 }
 
 const STARTER_TEMPLATES: Record<string, { title: string; slug: string; urlPath: string; html: string; isHomepage: boolean }> = {
-  homepage: {
-    title: "Homepage",
-    slug: "index",
-    urlPath: "/",
-    isHomepage: true,
-    html: SAMPLE_HOMEPAGE_HTML,
-  },
+  homepage: { title: "Homepage", slug: "index", urlPath: "/", isHomepage: true, html: SAMPLE_HOMEPAGE_HTML },
+  contact: { title: "Contact Us", slug: "contact", urlPath: "/contact/", isHomepage: false, html: SAMPLE_CONTACT_HTML },
+  privacy: { title: "Privacy Policy", slug: "privacy", urlPath: "/privacy/", isHomepage: false, html: SAMPLE_PRIVACY_HTML },
+  about: { title: "About Us", slug: "about", urlPath: "/about/", isHomepage: false, html: SAMPLE_ABOUT_HTML },
   listings_hub: {
     title: "All Listings",
     slug: "listings",
