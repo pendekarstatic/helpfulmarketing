@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   ArrowRight, Database, Code, Download, Search, BarChart3, FileText,
   Sparkles, Zap, Globe, Layers, CheckCircle, Star, Users, ChevronDown,
-  MapPin, TrendingUp, Shield, Clock
+  MapPin, TrendingUp, Shield, Clock, Target, Rocket
 } from "lucide-react";
 import {
   Accordion,
@@ -31,28 +31,22 @@ export default function Index() {
   const servicesRef = useRef<HTMLDivElement>(null);
   const benefitsRef = useRef<HTMLDivElement>(null);
   const howRef = useRef<HTMLDivElement>(null);
+  const localSeoRef = useRef<HTMLDivElement>(null);
   const ctaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const ctx = gsap.context(() => {
-      // Hero stagger
       gsap.from(".hero-animate", {
         y: 40, opacity: 0, duration: 0.8, stagger: 0.15, ease: "power3.out"
       });
-
-      // Stats counter animation
       gsap.from(".stat-item", {
         scrollTrigger: { trigger: statsRef.current, start: "top 85%" },
         y: 30, opacity: 0, duration: 0.6, stagger: 0.1
       });
-
-      // Features cards
       gsap.from(".feature-card", {
         scrollTrigger: { trigger: featuresRef.current, start: "top 80%" },
         y: 50, opacity: 0, duration: 0.7, stagger: 0.12
       });
-
-      // Zigzag sections
       gsap.utils.toArray<HTMLElement>(".zigzag-section").forEach((el) => {
         gsap.from(el.querySelectorAll(".zigzag-content"), {
           scrollTrigger: { trigger: el, start: "top 80%" },
@@ -63,32 +57,27 @@ export default function Index() {
           x: 40, opacity: 0, duration: 0.7, delay: 0.15
         });
       });
-
-      // Services
       gsap.from(".service-card", {
         scrollTrigger: { trigger: servicesRef.current, start: "top 80%" },
         y: 40, opacity: 0, duration: 0.6, stagger: 0.1
       });
-
-      // Benefits grid
       gsap.from(".benefit-card", {
         scrollTrigger: { trigger: benefitsRef.current, start: "top 80%" },
         y: 40, opacity: 0, duration: 0.5, stagger: 0.08
       });
-
-      // How it works
       gsap.from(".step-card", {
         scrollTrigger: { trigger: howRef.current, start: "top 80%" },
         y: 40, opacity: 0, duration: 0.6, stagger: 0.12
       });
-
-      // Final CTA
+      gsap.from(".local-seo-card", {
+        scrollTrigger: { trigger: localSeoRef.current, start: "top 80%" },
+        y: 40, opacity: 0, duration: 0.6, stagger: 0.1
+      });
       gsap.from(".final-cta", {
         scrollTrigger: { trigger: ctaRef.current, start: "top 85%" },
         y: 30, opacity: 0, duration: 0.8
       });
     });
-
     return () => ctx.revert();
   }, []);
 
@@ -102,14 +91,14 @@ export default function Index() {
         <div className="container relative grid lg:grid-cols-2 gap-12 py-20 lg:py-32">
           <div className="space-y-8 flex flex-col justify-center">
             <Badge variant="secondary" className="hero-animate w-fit text-xs font-mono tracking-wider gap-1.5">
-              <Sparkles className="h-3 w-3" /> Programmatic SEO Platform
+              <Sparkles className="h-3 w-3" /> Digital Marketing & SEO Platform
             </Badge>
             <h1 className="hero-animate text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.08]">
               Generate 1000s of SEO pages
               <span className="block text-primary mt-2">from a spreadsheet</span>
             </h1>
             <p className="hero-animate text-lg text-muted-foreground max-w-lg leading-relaxed">
-              Upload your data. Design templates. Export thousands of search-optimized static HTML pages — ready to deploy anywhere. No coding required.
+              The all-in-one digital marketing platform for programmatic SEO, directory sites, and local SEO. Upload data, design templates, export thousands of search-optimized pages — no coding required.
             </p>
             <div className="hero-animate flex flex-wrap gap-3">
               <Button size="lg" className="gap-2 shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-shadow" onClick={() => navigate(user ? "/dashboard" : "/auth")}>
@@ -143,7 +132,7 @@ export default function Index() {
                   <p><span className="text-primary">&lt;/div&gt;</span></p>
                 </div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>247 pages ready</span>
+                  <span>2,168 pages ready</span>
                   <Badge className="bg-success text-success-foreground text-xs">Generated ✓</Badge>
                 </div>
               </div>
@@ -158,7 +147,7 @@ export default function Index() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             {[
               { value: "50K+", label: "Pages generated" },
-              { value: "4 Modes", label: "pSEO · Directory · Hybrid · Local" },
+              { value: "4 Tools", label: "pSEO · Directory · Hybrid · Local SEO" },
               { value: "100%", label: "Static HTML export" },
               { value: "Zero", label: "Code required" },
             ].map((s) => (
@@ -177,7 +166,7 @@ export default function Index() {
           Stop building SEO pages <span className="text-primary">one by one</span>
         </h2>
         <p className="text-muted-foreground text-lg leading-relaxed">
-          Manually creating hundreds of location pages, directory listings, and landing pages is slow, expensive, and error-prone. HMW automates the entire process — from data import to static HTML export.
+          Manually creating hundreds of location pages, directory listings, and landing pages is slow, expensive, and error-prone. HMW automates the entire digital marketing workflow — from data import to static HTML export.
         </p>
         <Button variant="outline" size="lg" className="gap-2" onClick={() => navigate(user ? "/dashboard" : "/auth")}>
           See How It Works <ArrowRight className="h-4 w-4" />
@@ -235,15 +224,15 @@ export default function Index() {
       <section id="features" ref={servicesRef} className="bg-foreground text-background">
         <div className="container py-20 space-y-10">
           <div className="text-center space-y-3 max-w-2xl mx-auto">
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Four powerful generation modes</h2>
-            <p className="text-background/60">Choose the right approach for your SEO strategy. Mix and match across projects.</p>
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Four powerful SEO generation tools</h2>
+            <p className="text-background/60">Choose the right approach for your digital marketing strategy. Each tool is purpose-built.</p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { icon: <BarChart3 className="h-6 w-6" />, title: "pSEO", desc: "Best X in Y pages, comparisons, glossaries at scale" },
-              { icon: <Layers className="h-6 w-6" />, title: "Directory", desc: "Listing pages, categories, search results, locations" },
-              { icon: <Globe className="h-6 w-6" />, title: "Hybrid", desc: "Combined directory listings + programmatic landing pages" },
-              { icon: <MapPin className="h-6 w-6" />, title: "Local SEO", desc: "Search term × location combos for local dominance" },
+              { icon: <BarChart3 className="h-6 w-6" />, title: "pSEO", desc: "Best X in Y pages, comparisons, glossaries. Pattern-based page generation at scale." },
+              { icon: <Layers className="h-6 w-6" />, title: "Directory", desc: "Listing detail pages, search results, category pages with dynamic filtering." },
+              { icon: <Globe className="h-6 w-6" />, title: "Hybrid", desc: "Combined directory listings + programmatic landing pages for maximum coverage." },
+              { icon: <MapPin className="h-6 w-6" />, title: "Local SEO", desc: "Search term × location combos. Generate 2,000+ pages for local market dominance." },
             ].map((s) => (
               <div key={s.title} className="service-card rounded-xl border border-background/10 bg-background/5 p-6 space-y-3 hover:bg-background/10 transition-colors">
                 <div className="h-12 w-12 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
@@ -256,15 +245,105 @@ export default function Index() {
           </div>
           <div className="text-center">
             <Button size="lg" variant="secondary" className="gap-2" onClick={() => navigate(user ? "/dashboard" : "/auth")}>
-              Explore All Modes <ArrowRight className="h-4 w-4" />
+              Explore All Tools <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </section>
 
-      {/* ── SOCIAL PROOF SECTION ── */}
+      {/* ── LOCAL SEO SPOTLIGHT ── */}
+      <section id="local-seo" ref={localSeoRef} className="bg-muted/20 border-y">
+        <div className="container py-20 space-y-10">
+          <div className="text-center max-w-2xl mx-auto space-y-3">
+            <Badge variant="secondary" className="gap-1.5 mb-2">
+              <MapPin className="h-3 w-3" /> New Feature
+            </Badge>
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
+              Local SEO Generator
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              Dominate local search results. Enter your search terms and locations — HMW generates a unique, optimized page for every combination.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              {
+                icon: <Target className="h-5 w-5" />,
+                title: "Search Term × Location",
+                desc: "8 search terms × 271 locations = 2,168 unique pages. Each with custom SEO titles, meta descriptions, and structured data."
+              },
+              {
+                icon: <Code className="h-5 w-5" />,
+                title: "Full HTML Templates",
+                desc: "Write custom HTML with [search_term] and [location] placeholders. Use the same Monaco editor with live preview and AI assistance."
+              },
+              {
+                icon: <FileText className="h-5 w-5" />,
+                title: "Custom Slug Patterns",
+                desc: "Configure URL patterns like /services/[search_term]-in-[location] for SEO-friendly, readable URLs."
+              },
+              {
+                icon: <TrendingUp className="h-5 w-5" />,
+                title: "Auto Table of Contents",
+                desc: "Enable TOC generation with toggle, numbered lists, H2/H3 inclusion, and manual placement via [nsg-toc] shortcode."
+              },
+              {
+                icon: <Shield className="h-5 w-5" />,
+                title: "Archive Pages",
+                desc: "Auto-generated archive page listing all URLs. Control indexing with noindex/follow settings for search engines."
+              },
+              {
+                icon: <Rocket className="h-5 w-5" />,
+                title: "Bulk Generation",
+                desc: "Generate thousands of pages with progress tracking. Singular/plural term variants via pipe syntax (Plumber|Plumbers)."
+              },
+            ].map((item) => (
+              <div key={item.title} className="local-seo-card bg-card border rounded-xl p-6 space-y-3 hover:border-primary/30 transition-colors group">
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                  {item.icon}
+                </div>
+                <h3 className="font-semibold">{item.title}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-card border rounded-2xl p-6 md:p-8 max-w-3xl mx-auto">
+            <h3 className="font-bold text-lg mb-4">Example: Hairdresser Directory</h3>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <p className="text-sm font-semibold text-muted-foreground mb-2">Search Terms</p>
+                <div className="bg-muted rounded-lg p-3 font-mono text-xs space-y-0.5 text-muted-foreground">
+                  <p>Hairdresser | Hairdressers</p>
+                  <p>Stylist | Stylists</p>
+                  <p>Barber | Barbers</p>
+                  <p>Beautician | Beauticians</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-muted-foreground mb-2">Generated URLs</p>
+                <div className="bg-muted rounded-lg p-3 font-mono text-xs space-y-0.5 text-primary">
+                  <p>/hairdressers/hairdresser-in-seattle</p>
+                  <p>/hairdressers/stylist-in-portland</p>
+                  <p>/hairdressers/barber-in-new-york</p>
+                  <p className="text-muted-foreground">...2,168 more URLs</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center">
+            <Button size="lg" className="gap-2 shadow-lg shadow-primary/25" onClick={() => navigate(user ? "/dashboard" : "/auth")}>
+              Try Local SEO Generator <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── SOCIAL PROOF ── */}
       <section className="container py-20 text-center space-y-8">
-        <h2 className="text-3xl font-bold tracking-tight">Trusted by SEO professionals</h2>
+        <h2 className="text-3xl font-bold tracking-tight">Trusted by digital marketing professionals</h2>
         <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
           {[
             { quote: "Generated 2,000+ local pages in under an hour. The export quality is production-ready.", name: "Digital Marketing Agency", stars: 5 },
@@ -288,13 +367,13 @@ export default function Index() {
       <section ref={benefitsRef} className="bg-muted/30 border-y">
         <div className="container py-20 space-y-10">
           <div className="text-center max-w-2xl mx-auto space-y-3">
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight">What makes HMW different</h2>
-            <p className="text-muted-foreground">Everything you need for programmatic SEO, nothing you don't.</p>
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Built for digital marketing teams</h2>
+            <p className="text-muted-foreground">Everything you need for programmatic SEO and local search dominance.</p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
               { icon: <Search className="h-5 w-5" />, title: "Auto Meta Tags & OG", desc: "Pattern-based titles, descriptions, Open Graph, and canonical URLs for every page." },
-              { icon: <FileText className="h-5 w-5" />, title: "JSON-LD Schema", desc: "Automatic structured data markup: LocalBusiness, Product, FAQ, and more." },
+              { icon: <FileText className="h-5 w-5" />, title: "JSON-LD Schema", desc: "Automatic structured data markup: LocalBusiness, Service, Product, FAQ, and more." },
               { icon: <Globe className="h-5 w-5" />, title: "XML Sitemaps", desc: "Auto-generated sitemaps with 50K URL limit. Separate sitemaps per template type." },
               { icon: <TrendingUp className="h-5 w-5" />, title: "Spintax Engine", desc: "Nested spintax for unique content variations across thousands of pages." },
               { icon: <Shield className="h-5 w-5" />, title: "Custom Pages", desc: "Manual hub pages to prevent orphans: homepage, about, contact, privacy." },
@@ -349,9 +428,9 @@ export default function Index() {
           <Accordion type="single" collapsible className="space-y-2">
             {[
               { q: "What is programmatic SEO?", a: "Programmatic SEO is the practice of generating large numbers of search-optimized pages using templates and data. Instead of writing each page manually, you define a template and feed it data — HMW generates unique pages for every data row." },
+              { q: "How is Local SEO different from pSEO?", a: "Local SEO is a dedicated tool focused on combinatorial page generation. You enter search terms (e.g., 'Plumber', 'Electrician') and locations (e.g., 'Seattle', 'Portland'). HMW generates a unique page for every combination — ideal for service-area businesses. pSEO generates pages from spreadsheet data using {{variable}} templates." },
               { q: "Do I need coding skills?", a: "No. While you can write custom HTML, HMW provides built-in templates and an AI assistant to help you create templates. The entire workflow is point-and-click." },
               { q: "What data sources are supported?", a: "CSV file upload, published Google Sheets URLs, Google Sheets OAuth API connection, and Apps Script webhooks for real-time data sync." },
-              { q: "How does the Local SEO mode work?", a: "You enter a list of search terms (with optional singular/plural variants) and a list of locations. HMW generates a unique page for every combination — perfect for service-area businesses targeting multiple cities." },
               { q: "Can I export to my own hosting?", a: "Yes! HMW exports a complete ZIP file with static HTML pages, shared CSS/JS assets, XML sitemaps, and robots.txt. You can host the files on any web server, CDN, or static hosting provider." },
               { q: "What about duplicate content?", a: "HMW includes a built-in spintax engine that creates unique content variations for each page, canonical URL support, and customizable meta tags to avoid duplicate content issues." },
             ].map((faq, i) => (
@@ -374,10 +453,10 @@ export default function Index() {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.1),transparent)]" />
           <div className="relative space-y-6">
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
-              Ready to scale your SEO?
+              Ready to scale your digital marketing?
             </h2>
             <p className="text-primary-foreground/80 text-lg max-w-xl mx-auto">
-              Join hundreds of marketers generating thousands of pages. Start free, no credit card required.
+              Join hundreds of marketers generating thousands of SEO pages. Start free, no credit card required.
             </p>
             <Button size="lg" variant="secondary" className="gap-2 shadow-lg" onClick={() => navigate(user ? "/dashboard" : "/auth")}>
               Get Started Free <ArrowRight className="h-4 w-4" />
@@ -387,6 +466,25 @@ export default function Index() {
       </section>
 
       <PublicFooter />
+
+      {/* JSON-LD Structured Data */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "HMW - Helpful Marketing Website",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "description": "All-in-one digital marketing platform for programmatic SEO, directory sites, and local SEO page generation.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "creator": {
+          "@type": "Organization",
+          "name": "Helpful Marketing Website"
+        }
+      })}} />
     </div>
   );
 }

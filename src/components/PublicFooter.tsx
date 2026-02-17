@@ -15,13 +15,14 @@ export default function PublicFooter() {
               <span className="font-bold tracking-tight">HMW</span>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Turn spreadsheets into SEO-powered websites. The all-in-one programmatic SEO platform.
+              The all-in-one digital marketing platform. Turn spreadsheets into SEO-powered websites with programmatic SEO and local search tools.
             </p>
           </div>
           <div>
             <h4 className="font-semibold text-sm mb-3">Product</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><a href="#features" className="hover:text-foreground transition-colors">Features</a></li>
+              <li><a href="#local-seo" className="hover:text-foreground transition-colors">Local SEO</a></li>
               <li><a href="#how-it-works" className="hover:text-foreground transition-colors">How It Works</a></li>
               <li><button onClick={() => navigate("/tools/spintax")} className="hover:text-foreground transition-colors">Spintax Tool</button></li>
             </ul>
@@ -43,7 +44,7 @@ export default function PublicFooter() {
         </div>
         <div className="border-t mt-8 pt-6 flex flex-col md:flex-row items-center justify-between text-xs text-muted-foreground gap-2">
           <span>© {new Date().getFullYear()} Helpful Marketing Website. All rights reserved.</span>
-          <span className="font-mono">Built for SEO builders</span>
+          <span className="font-mono">Digital Marketing & SEO Platform</span>
         </div>
       </div>
     </footer>
