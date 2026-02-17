@@ -347,20 +347,35 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
     },
   });
 
+  // Get existing pages to compute accurate counts
+  const { data: existingPages = [] } = useQuery({
+    queryKey: ["pages", projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pages")
+        .select("slug, template_id")
+        .eq("project_id", projectId);
+      if (error) throw error;
+      return data;
+    },
+  });
+
 
   // Calculate total available rows for page generation
-  const totalDataRows = dataSources.reduce((sum, ds) => {
-    if (Array.isArray(ds.cached_data)) return sum + (ds.cached_data as any[]).length;
-    return sum;
-  }, 0);
+  const allDataRows: any[] = [];
+  for (const ds of dataSources) {
+    if (Array.isArray(ds.cached_data)) allDataRows.push(...(ds.cached_data as any[]));
+  }
+  const totalDataRows = allDataRows.length;
 
-  // Get all available variables from data
+  // Get all available variables from ALL rows (not just first row)
   const allVariables: string[] = [];
   for (const ds of dataSources) {
     if (Array.isArray(ds.cached_data) && (ds.cached_data as any[]).length > 0) {
-      const keys = Object.keys((ds.cached_data as any[])[0]);
-      for (const k of keys) {
-        if (!allVariables.includes(k)) allVariables.push(k);
+      for (const row of (ds.cached_data as any[])) {
+        for (const k of Object.keys(row)) {
+          if (!allVariables.includes(k)) allVariables.push(k);
+        }
       }
     }
   }
@@ -500,7 +515,7 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
             <CardDescription className="text-xs">These variables from your data sources can be used in templates as {"{{variable}}"}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="max-h-[7.5rem] overflow-auto">
+            <div className="max-h-[12rem] overflow-auto">
               <div className="flex flex-wrap gap-1.5">
                 {allVariables.map((v) => (
                   <code key={v} className="text-xs bg-muted px-2 py-1 rounded font-mono">{`{{${v}}}`}</code>
@@ -568,7 +583,16 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Can generate <strong>{totalDataRows}</strong> pages from current data
+                  {(() => {
+                    const existingSlugs = new Set(existingPages.filter(p => p.template_id === t.id).map(p => p.slug));
+                    const uniqueNewRows = allDataRows.filter(row => {
+                      const title = row.title || row.name || row.Name || row.Title || Object.values(row).find((v) => typeof v === "string" && (v as string).trim()) || "Untitled";
+                      const slug = (row.slug || String(title)).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+                      return !existingSlugs.has(slug);
+                    });
+                    const existing = existingPages.filter(p => p.template_id === t.id).length;
+                    return <>Can generate <strong>{uniqueNewRows.length}</strong> new pages{existing > 0 && <> · {existing} already generated</>}</>;
+                  })()}
                 </p>
               </CardHeader>
               <CardContent className="pt-0">

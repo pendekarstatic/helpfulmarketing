@@ -110,7 +110,7 @@ export default function SeoTab({ projectId, project }: SeoTabProps) {
             {pages.slice(0, 8).map((page) => (
               <div key={page.id} className="space-y-1 cursor-pointer hover:bg-muted/50 p-2 rounded-md -mx-2 transition-colors" onClick={() => setEditingMeta({ ...page })}>
                 <div className="text-sm text-primary hover:underline truncate">
-                  {page.meta_title || page.title} — {project.site_name || project.name}
+                  {page.meta_title || page.title}
                   {page.meta_title && page.meta_title.length > 60 && <Badge variant="outline" className="ml-2 text-xs text-destructive">Too long</Badge>}
                 </div>
                 <div className="text-xs text-success truncate">{project.slug || "example.com"}{page.url_path || `/${page.slug}`}</div>
