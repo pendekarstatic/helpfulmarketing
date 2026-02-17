@@ -35,12 +35,11 @@ function extractAndSplitAssets(html: string): { cleanHtml: string; css: string; 
 
   // Inject link to shared CSS and JS
   if (css) {
-    cleanHtml = cleanHtml.replace("</head>", `  <link rel="stylesheet" href="/styles.css">\n</head>`);
+      cleanHtml = cleanHtml.replace("</head>", `  <link rel="stylesheet" href="/assets/styles.css">\n</head>`);
   }
   if (js) {
-    cleanHtml = cleanHtml.replace("</body>", `  <script src="/scripts.js"></script>\n</body>`);
+      cleanHtml = cleanHtml.replace("</body>", `  <script src="/assets/scripts.js"></script>\n</body>`);
   }
-
   return { cleanHtml, css, js };
 }
 
@@ -116,18 +115,17 @@ export default function ExportTab({ projectId, project }: ExportTabProps) {
       // Write shared CSS/JS files if split mode
       if (splitAssets) {
         if (globalCss.trim()) {
-          // Deduplicate CSS by using a Set of rules
           const uniqueCss = [...new Set(globalCss.split("\n").filter(l => l.trim()))].join("\n");
-          zip.file("styles.css", uniqueCss);
+          zip.file("assets/styles.css", uniqueCss);
         }
         if (globalJs.trim()) {
           const uniqueJs = [...new Set(globalJs.split("\n").filter(l => l.trim()))].join("\n");
-          zip.file("scripts.js", uniqueJs);
+          zip.file("assets/scripts.js", uniqueJs);
         }
       }
 
       // Index HTML
-      const indexCssLink = splitAssets && globalCss.trim() ? `<link rel="stylesheet" href="/styles.css">` : "";
+      const indexCssLink = splitAssets && globalCss.trim() ? `<link rel="stylesheet" href="/assets/styles.css">` : "";
       const indexHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
