@@ -93,25 +93,98 @@ export default function PagesTab({ projectId }: PagesTabProps) {
     }
   };
 
+  const applyFilters = (rows: any[], filterRules: any[]): any[] => {
+    if (!filterRules || filterRules.length === 0) return rows;
+    return rows.filter(row => {
+      return filterRules.every((f: any) => {
+        const val = String(row[f.variable] ?? "").toLowerCase();
+        const target = String(f.value ?? "").toLowerCase();
+        switch (f.operator) {
+          case "contains": return val.includes(target);
+          case "equals": return val === target;
+          case "not_contains": return !val.includes(target);
+          default: return true;
+        }
+      });
+    });
+  };
+
+  const expandRows = (rows: any[], template: any): any[] => {
+    const genMode = (template as any).generation_mode || "normal";
+    
+    if (genMode === "split") {
+      const splitCol = (template as any).split_column;
+      if (!splitCol) return rows;
+      const expanded: any[] = [];
+      for (const row of rows) {
+        const val = String(row[splitCol] || "");
+        const parts = val.split(",").map((s: string) => s.trim()).filter(Boolean);
+        if (parts.length <= 1) {
+          expanded.push(row);
+        } else {
+          for (const part of parts) {
+            expanded.push({ ...row, [splitCol]: part });
+          }
+        }
+      }
+      return expanded;
+    }
+    
+    if (genMode === "combo") {
+      const comboCols = (template as any).combo_columns;
+      if (!Array.isArray(comboCols) || comboCols.length < 2) return rows;
+      const [colA, colB] = comboCols;
+      
+      // Collect unique values (splitting commas)
+      const valuesA = new Set<string>();
+      const valuesB = new Set<string>();
+      for (const row of rows) {
+        const aVals = String(row[colA] || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+        const bVals = String(row[colB] || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+        aVals.forEach((v: string) => valuesA.add(v));
+        bVals.forEach((v: string) => valuesB.add(v));
+      }
+      
+      // Generate cartesian product using first row as base
+      const baseRow = rows[0] || {};
+      const expanded: any[] = [];
+      for (const a of valuesA) {
+        for (const b of valuesB) {
+          expanded.push({ ...baseRow, [colA]: a, [colB]: b, title: `${a} in ${b}`, slug: `${a}-in-${b}`.toLowerCase().replace(/[^a-z0-9]+/g, "-") });
+        }
+      }
+      return expanded;
+    }
+    
+    return rows;
+  };
+
   const generatePages = useMutation({
     mutationFn: async ({ templateId, regenerate }: { templateId: string; regenerate?: boolean }) => {
       setGenerating(true);
       const template = templates.find((t) => t.id === templateId);
       if (!template) throw new Error("Template not found");
-      const allRows: any[] = [];
+      let allRows: any[] = [];
       for (const ds of dataSources) {
         if (Array.isArray(ds.cached_data)) allRows.push(...(ds.cached_data as any[]));
       }
       if (allRows.length === 0) throw new Error("No data available. Add a data source first.");
 
-      // Get existing page slugs for this template to prevent duplicates
+      // Apply filter rules
+      const filterRules = (template as any).filter_rules;
+      allRows = applyFilters(allRows, filterRules);
+
+      // Apply expansion (split/combo)
+      allRows = expandRows(allRows, template);
+
+      if (allRows.length === 0) throw new Error("No rows match the filter rules.");
+
       const existingSlugs = new Set(
         pages
           .filter((p) => !regenerate && p.template_id === templateId)
           .map((p) => p.slug)
       );
 
-      // If regenerate, delete existing pages for this template first
       if (regenerate) {
         const { error: delErr } = await supabase
           .from("pages")
@@ -132,7 +205,6 @@ export default function PagesTab({ projectId }: PagesTabProps) {
                         Object.values(row).find((v) => typeof v === "string" && (v as string).trim()) || "Untitled";
           const slug = (row.slug || String(title)).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-          // Skip duplicates
           if (existingSlugs.has(slug)) return null;
           existingSlugs.add(slug);
 
@@ -187,7 +259,7 @@ export default function PagesTab({ projectId }: PagesTabProps) {
         .filter(Boolean);
 
       if (pagesToInsert.length === 0) {
-        throw new Error("No new pages to generate. All data rows already have pages (no duplicates created).");
+        throw new Error("No new pages to generate. All data rows already have pages.");
       }
 
       const { error } = await supabase.from("pages").insert(pagesToInsert);

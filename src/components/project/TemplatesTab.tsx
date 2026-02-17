@@ -5,13 +5,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileCode, Trash2, Edit, Copy, BookTemplate, Sparkles } from "lucide-react";
+import { Plus, FileCode, Trash2, Edit, Copy, BookTemplate, Sparkles, Filter, Combine } from "lucide-react";
 import TemplateEditor from "./TemplateEditor";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -313,6 +313,12 @@ const DEFAULT_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
+interface FilterRule {
+  variable: string;
+  operator: "contains" | "equals" | "not_contains";
+  value: string;
+}
+
 export default function TemplatesTab({ projectId, projectMode }: TemplatesTabProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -320,6 +326,7 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
   const [createOpen, setCreateOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [configTemplateId, setConfigTemplateId] = useState<string | null>(null);
 
   const { data: templates = [] } = useQuery({
     queryKey: ["templates", projectId],
@@ -334,7 +341,6 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
     },
   });
 
-  // Get available data for variable info and page count
   const { data: dataSources = [] } = useQuery({
     queryKey: ["data-sources", projectId],
     queryFn: async () => {
@@ -347,7 +353,6 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
     },
   });
 
-  // Get existing pages to compute accurate counts
   const { data: existingPages = [] } = useQuery({
     queryKey: ["pages", projectId],
     queryFn: async () => {
@@ -360,15 +365,12 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
     },
   });
 
-
-  // Calculate total available rows for page generation
   const allDataRows: any[] = [];
   for (const ds of dataSources) {
     if (Array.isArray(ds.cached_data)) allDataRows.push(...(ds.cached_data as any[]));
   }
   const totalDataRows = allDataRows.length;
 
-  // Get all available variables from ALL rows (not just first row)
   const allVariables: string[] = [];
   for (const ds of dataSources) {
     if (Array.isArray(ds.cached_data) && (ds.cached_data as any[]).length > 0) {
@@ -437,6 +439,23 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
     },
   });
 
+  const updateTemplateConfig = useMutation({
+    mutationFn: async ({ id, generation_mode, split_column, combo_columns, filter_rules }: any) => {
+      const { error } = await supabase.from("templates").update({
+        generation_mode,
+        split_column,
+        combo_columns,
+        filter_rules,
+      }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["templates", projectId] });
+      setConfigTemplateId(null);
+      toast({ title: "Generation config saved!" });
+    },
+  });
+
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
@@ -445,7 +464,6 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
       template_type: (form.get("template_type") as TemplateType) || "custom",
     });
   };
-
 
   const editingTemplate = editingId ? templates.find((t) => t.id === editingId) : null;
 
@@ -458,6 +476,8 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
     if (projectMode === "directory") return ["business_directory", "saas_directory", "job_board", "category_hub"].includes(key);
     return true;
   });
+
+  const configTemplate = configTemplateId ? templates.find(t => t.id === configTemplateId) : null;
 
   return (
     <div className="space-y-6">
@@ -526,7 +546,6 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
         </Card>
       )}
 
-
       {/* Template Library Dialog */}
       <Dialog open={libraryOpen} onOpenChange={setLibraryOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
@@ -550,13 +569,23 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
         </DialogContent>
       </Dialog>
 
+      {/* Generation Config Dialog */}
+      <GenerationConfigDialog
+        template={configTemplate}
+        variables={allVariables}
+        open={!!configTemplateId}
+        onOpenChange={(open) => { if (!open) setConfigTemplateId(null); }}
+        onSave={(config) => updateTemplateConfig.mutate({ id: configTemplateId, ...config })}
+        saving={updateTemplateConfig.isPending}
+      />
+
       {/* Template cards */}
       {templates.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <FileCode className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-1">No templates yet</h3>
-            <p className="text-muted-foreground mb-4">Use the Library for pre-built templates or create a custom one. AI Generate is available inside the template editor.</p>
+            <p className="text-muted-foreground mb-4">Use the Library for pre-built templates or create a custom one.</p>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setLibraryOpen(true)}>
                 <BookTemplate className="h-4 w-4 mr-1" /> Browse Library
@@ -569,51 +598,235 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {templates.map((t) => (
-            <Card key={t.id} className="group hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-base">{t.name}</CardTitle>
-                    <CardDescription className="flex items-center gap-2 mt-1 flex-wrap">
-                      <Badge variant="secondary" className="text-xs">{TEMPLATE_LABELS[t.template_type]}</Badge>
-                      {t.schema_type && <Badge variant="outline" className="text-xs">{t.schema_type}</Badge>}
-                      <span className="text-xs">v{t.version}</span>
-                    </CardDescription>
+          {templates.map((t) => {
+            const genMode = (t as any).generation_mode || "normal";
+            return (
+              <Card key={t.id} className="group hover:shadow-md transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="text-base">{t.name}</CardTitle>
+                      <CardDescription className="flex items-center gap-2 mt-1 flex-wrap">
+                        <Badge variant="secondary" className="text-xs">{TEMPLATE_LABELS[t.template_type]}</Badge>
+                        {t.schema_type && <Badge variant="outline" className="text-xs">{t.schema_type}</Badge>}
+                        {genMode !== "normal" && (
+                          <Badge variant="outline" className="text-xs bg-accent/10 text-accent">
+                            {genMode === "split" ? "Split" : "Combo"}
+                          </Badge>
+                        )}
+                        <span className="text-xs">v{t.version}</span>
+                      </CardDescription>
+                    </div>
                   </div>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {(() => {
-                    const existingSlugs = new Set(existingPages.filter(p => p.template_id === t.id).map(p => p.slug));
-                    const uniqueNewRows = allDataRows.filter(row => {
-                      const title = row.title || row.name || row.Name || row.Title || Object.values(row).find((v) => typeof v === "string" && (v as string).trim()) || "Untitled";
-                      const slug = (row.slug || String(title)).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-                      return !existingSlugs.has(slug);
-                    });
-                    const existing = existingPages.filter(p => p.template_id === t.id).length;
-                    return <>Can generate <strong>{uniqueNewRows.length}</strong> new pages{existing > 0 && <> · {existing} already generated</>}</>;
-                  })()}
-                </p>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex gap-1">
-                  <Button size="sm" variant="outline" onClick={() => setEditingId(t.id)}>
-                    <Edit className="h-3 w-3 mr-1" /> Edit
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => duplicateTemplate.mutate(t)}>
-                    <Copy className="h-3 w-3" />
-                  </Button>
-                  {!t.is_builtin && (
-                    <Button size="sm" variant="ghost" onClick={() => deleteTemplate.mutate(t.id)}>
-                      <Trash2 className="h-3 w-3 text-destructive" />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {(() => {
+                      const existingSlugs = new Set(existingPages.filter(p => p.template_id === t.id).map(p => p.slug));
+                      const uniqueNewRows = allDataRows.filter(row => {
+                        const title = row.title || row.name || row.Name || row.Title || Object.values(row).find((v) => typeof v === "string" && (v as string).trim()) || "Untitled";
+                        const slug = (row.slug || String(title)).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+                        return !existingSlugs.has(slug);
+                      });
+                      const existing = existingPages.filter(p => p.template_id === t.id).length;
+                      return <>Can generate <strong>{uniqueNewRows.length}</strong> new pages{existing > 0 && <> · {existing} already generated</>}</>;
+                    })()}
+                  </p>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="outline" onClick={() => setEditingId(t.id)}>
+                      <Edit className="h-3 w-3 mr-1" /> Edit
                     </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    <Button size="sm" variant="ghost" title="Generation Config" onClick={() => setConfigTemplateId(t.id)}>
+                      <Filter className="h-3 w-3" />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => duplicateTemplate.mutate(t)}>
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                    {!t.is_builtin && (
+                      <Button size="sm" variant="ghost" onClick={() => deleteTemplate.mutate(t.id)}>
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
+  );
+}
+
+// Generation Config Dialog Component
+function GenerationConfigDialog({
+  template,
+  variables,
+  open,
+  onOpenChange,
+  onSave,
+  saving,
+}: {
+  template: any;
+  variables: string[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (config: any) => void;
+  saving: boolean;
+}) {
+  const [mode, setMode] = useState<string>("normal");
+  const [splitColumn, setSplitColumn] = useState("");
+  const [comboCol1, setComboCol1] = useState("");
+  const [comboCol2, setComboCol2] = useState("");
+  const [filters, setFilters] = useState<FilterRule[]>([]);
+
+  // Reset when template changes
+  useState(() => {
+    if (template) {
+      setMode((template as any).generation_mode || "normal");
+      setSplitColumn((template as any).split_column || "");
+      const cc = (template as any).combo_columns;
+      if (Array.isArray(cc) && cc.length >= 2) {
+        setComboCol1(cc[0]);
+        setComboCol2(cc[1]);
+      }
+      const fr = (template as any).filter_rules;
+      if (Array.isArray(fr)) setFilters(fr);
+      else setFilters([]);
+    }
+  });
+
+  const addFilter = () => {
+    setFilters([...filters, { variable: variables[0] || "", operator: "contains", value: "" }]);
+  };
+
+  const removeFilter = (i: number) => {
+    setFilters(filters.filter((_, idx) => idx !== i));
+  };
+
+  const updateFilter = (i: number, field: keyof FilterRule, value: string) => {
+    const updated = [...filters];
+    updated[i] = { ...updated[i], [field]: value };
+    setFilters(updated);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><Filter className="h-5 w-5" /> Generation Config</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Generation Mode */}
+          <div className="space-y-2">
+            <Label>Generation Mode</Label>
+            <Select value={mode} onValueChange={setMode}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="normal">Normal — one page per data row</SelectItem>
+                <SelectItem value="split">Split — split comma values into separate pages</SelectItem>
+                <SelectItem value="combo">Combo — cartesian product of two columns</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {mode === "normal" && "Each data row generates one page."}
+              {mode === "split" && "Comma-separated values in a column generate separate pages. e.g., 'Cheap,Exclusive' → 2 pages."}
+              {mode === "combo" && "Generates pages for every combination of two columns. e.g., category × location."}
+            </p>
+          </div>
+
+          {mode === "split" && (
+            <div className="space-y-2">
+              <Label>Column to Split</Label>
+              <Select value={splitColumn} onValueChange={setSplitColumn}>
+                <SelectTrigger><SelectValue placeholder="Select column..." /></SelectTrigger>
+                <SelectContent>
+                  {variables.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Rows with comma-separated values in this column will generate one page per value.</p>
+            </div>
+          )}
+
+          {mode === "combo" && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Column A (e.g., category)</Label>
+                <Select value={comboCol1} onValueChange={setComboCol1}>
+                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>
+                    {variables.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Column B (e.g., location)</Label>
+                <Select value={comboCol2} onValueChange={setComboCol2}>
+                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>
+                    {variables.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-xs text-muted-foreground col-span-2">Generates one page for every unique combination of values from both columns. Comma-separated values are also split.</p>
+            </div>
+          )}
+
+          {/* Filter Rules */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Data Filters</Label>
+              <Button variant="outline" size="sm" onClick={addFilter}>
+                <Plus className="h-3 w-3 mr-1" /> Add Filter
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Only generate pages for rows matching these conditions.</p>
+
+            {filters.length > 0 && (
+              <div className="space-y-2">
+                {filters.map((f, i) => (
+                  <div key={i} className="flex gap-2 items-center">
+                    <Select value={f.variable} onValueChange={(v) => updateFilter(i, "variable", v)}>
+                      <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {variables.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select value={f.operator} onValueChange={(v) => updateFilter(i, "operator", v)}>
+                      <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="contains">contains</SelectItem>
+                        <SelectItem value="equals">equals</SelectItem>
+                        <SelectItem value="not_contains">not contains</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input value={f.value} onChange={(e) => updateFilter(i, "value", e.target.value)} placeholder="Value..." className="flex-1" />
+                    <Button variant="ghost" size="icon" onClick={() => removeFilter(i)} className="h-8 w-8 shrink-0">
+                      <Trash2 className="h-3 w-3 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button
+            onClick={() => onSave({
+              generation_mode: mode,
+              split_column: mode === "split" ? splitColumn : null,
+              combo_columns: mode === "combo" ? [comboCol1, comboCol2] : null,
+              filter_rules: filters.length > 0 ? filters : null,
+            })}
+            disabled={saving}
+          >
+            {saving ? "Saving..." : "Save Config"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

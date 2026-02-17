@@ -15,12 +15,17 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, Eye, Code, Wand2, Sparkles, Database, AlertCircle, X, Settings2 } from "lucide-react";
+import { ArrowLeft, Save, Eye, Code, Wand2, Sparkles, Database, AlertCircle, X, Settings2, MessageSquare, FileDown, Copy, Send } from "lucide-react";
 
 interface TemplateEditorProps {
   template: any;
   projectId: string;
   onBack: () => void;
+}
+
+interface ChatMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
 }
 
 export default function TemplateEditor({ template, projectId, onBack }: TemplateEditorProps) {
@@ -66,6 +71,15 @@ export default function TemplateEditor({ template, projectId, onBack }: Template
   const [aiTemperature, setAiTemperature] = useState(0.7);
   const [aiMaxTokens, setAiMaxTokens] = useState(4096);
   const [aiTopP, setAiTopP] = useState(1);
+
+  // Chat history for follow-up (session only)
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [followUpInput, setFollowUpInput] = useState("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Prompt generator dialog
+  const [promptGenOpen, setPromptGenOpen] = useState(false);
+  const [generatedPrompt, setGeneratedPrompt] = useState("");
 
   // Get ALL data sources
   const { data: allDataSources = [] } = useQuery({
@@ -159,12 +173,25 @@ export default function TemplateEditor({ template, projectId, onBack }: Template
     return rendered;
   }, [html, css, sampleData]);
 
+  const buildSystemPrompt = () => {
+    const variablesList = availableVars.map(v => `{{${v}}}`).join(", ");
+    const guidelines = aiBrandGuidelines || "";
+    return `You are an expert web designer. Generate a complete, beautiful, responsive HTML page template.
+The template must use these template variables for dynamic content: ${variablesList}
+Variables are injected as {{variable_name}} in the HTML.
+${guidelines ? `\nBrand Guidelines:\n${guidelines}` : ""}
+Return ONLY the complete HTML code, starting with <!DOCTYPE html>. Include all CSS inline in a <style> tag.
+Make the design modern, clean, and professional. Use semantic HTML.`;
+  };
+
   const openAiDialog = () => {
     setAiOpen(true);
     setAiPreviewHtml(null);
     setAiStreamingText("");
     setAiProgress(0);
     setAiPrompt("");
+    setChatHistory([]);
+    setFollowUpInput("");
     setAiBrandGuidelines(project?.brand_guidelines || "");
     if (project?.openrouter_api_key) {
       setAiProvider("openrouter");
@@ -179,7 +206,6 @@ export default function TemplateEditor({ template, projectId, onBack }: Template
   };
 
   const handleSaveAiSettings = async () => {
-    // Save AI settings back to project
     const updates: any = {};
     if (aiProvider === "openrouter") {
       updates.openrouter_api_key = aiApiKey;
@@ -198,15 +224,120 @@ export default function TemplateEditor({ template, projectId, onBack }: Template
     }
   };
 
+  const extractHtml = (text: string): string | null => {
+    let htmlContent = text;
+    const codeBlockMatch = htmlContent.match(/```html?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) htmlContent = codeBlockMatch[1].trim();
+    if (htmlContent.includes("<!DOCTYPE") || htmlContent.includes("<html")) {
+      return htmlContent;
+    }
+    return null;
+  };
+
+  const callAi = async (messages: ChatMessage[]): Promise<string> => {
+    const key = aiApiKey.trim();
+    if (!key) throw new Error("API key required");
+
+    if (aiProvider === "openrouter") {
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const model = aiModel || "openai/gpt-4o";
+
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${key}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": window.location.origin,
+          "X-Title": "PageForge",
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          stream: true,
+          temperature: aiTemperature,
+          max_tokens: aiMaxTokens,
+          top_p: aiTopP,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`API error ${response.status}: ${errText}`);
+      }
+
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+      let textBuffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        textBuffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex: number;
+        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+          let line = textBuffer.slice(0, newlineIndex);
+          textBuffer = textBuffer.slice(newlineIndex + 1);
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") break;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              fullText += content;
+              setAiStreamingText(fullText);
+              setAiProgress(Math.min(90, 30 + (fullText.length / aiMaxTokens) * 60));
+            }
+          } catch { /* partial JSON, skip */ }
+        }
+      }
+      return fullText;
+    } else {
+      // Straico
+      const model = aiModel || "openai/gpt-4o";
+      const systemMsg = messages.find(m => m.role === "system")?.content || "";
+      const userMsgs = messages.filter(m => m.role !== "system").map(m => `${m.role}: ${m.content}`).join("\n\n");
+
+      const response = await fetch("https://api.straico.com/v0/prompt/completion", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          message: `${systemMsg}\n\n${userMsgs}`,
+          temperature: aiTemperature,
+          max_tokens: aiMaxTokens,
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`API error ${response.status}: ${errText}`);
+      }
+
+      const data = await response.json();
+      let htmlContent = data.data?.completion?.choices?.[0]?.message?.content ||
+                        data.data?.completion || "";
+      if (typeof htmlContent === "object") htmlContent = JSON.stringify(htmlContent);
+      setAiStreamingText(htmlContent);
+      return htmlContent;
+    }
+  };
+
   const handleAiGenerate = async () => {
     if (!aiPrompt.trim()) {
       toast({ title: "Please describe the website you want to generate", variant: "destructive" });
       return;
     }
-
-    const key = aiApiKey.trim();
-    if (!key) {
-      toast({ title: "API key required", description: "Enter your OpenRouter or Straico API key.", variant: "destructive" });
+    if (!aiApiKey.trim()) {
+      toast({ title: "API key required", variant: "destructive" });
       return;
     }
 
@@ -216,147 +347,31 @@ export default function TemplateEditor({ template, projectId, onBack }: Template
     setAiPreviewHtml(null);
 
     try {
-      const variablesList = availableVars.map(v => `{{${v}}}`).join(", ");
-      const guidelines = aiBrandGuidelines || "";
+      const systemPrompt = buildSystemPrompt();
+      // Include current HTML context if it exists
+      const contextNote = html.trim() ? `\n\nThe current template HTML is:\n${html}\n\nPlease improve or regenerate based on the user's request.` : "";
 
-      const systemPrompt = `You are an expert web designer. Generate a complete, beautiful, responsive HTML page template.
-The template must use these template variables for dynamic content: ${variablesList}
-Variables are injected as {{variable_name}} in the HTML.
-${guidelines ? `\nBrand Guidelines:\n${guidelines}` : ""}
-Return ONLY the complete HTML code, starting with <!DOCTYPE html>. Include all CSS inline in a <style> tag.
-Make the design modern, clean, and professional. Use semantic HTML.`;
+      const messages: ChatMessage[] = [
+        { role: "system", content: systemPrompt + contextNote },
+        { role: "user", content: aiPrompt },
+      ];
 
-      if (aiProvider === "openrouter") {
-        // OpenRouter supports streaming
-        const controller = new AbortController();
-        abortRef.current = controller;
-        const model = aiModel || "openai/gpt-4o";
+      setAiProgress(30);
+      const fullText = await callAi(messages);
 
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${key}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": window.location.origin,
-            "X-Title": "pSEO Generator",
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: aiPrompt },
-            ],
-            stream: true,
-            temperature: aiTemperature,
-            max_tokens: aiMaxTokens,
-            top_p: aiTopP,
-          }),
-          signal: controller.signal,
-        });
+      const extracted = extractHtml(fullText);
+      if (!extracted) throw new Error("AI did not return valid HTML. Please try again.");
 
-        if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(`API error ${response.status}: ${errText}`);
-        }
+      // Save to chat history
+      setChatHistory([
+        { role: "system", content: systemPrompt + contextNote },
+        { role: "user", content: aiPrompt },
+        { role: "assistant", content: fullText },
+      ]);
 
-        setAiProgress(30);
-
-        // Stream SSE
-        const reader = response.body!.getReader();
-        const decoder = new TextDecoder();
-        let fullText = "";
-        let textBuffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          textBuffer += decoder.decode(value, { stream: true });
-
-          let newlineIndex: number;
-          while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
-            let line = textBuffer.slice(0, newlineIndex);
-            textBuffer = textBuffer.slice(newlineIndex + 1);
-            if (line.endsWith("\r")) line = line.slice(0, -1);
-            if (!line.startsWith("data: ")) continue;
-            const jsonStr = line.slice(6).trim();
-            if (jsonStr === "[DONE]") break;
-            try {
-              const parsed = JSON.parse(jsonStr);
-              const content = parsed.choices?.[0]?.delta?.content;
-              if (content) {
-                fullText += content;
-                setAiStreamingText(fullText);
-                setAiProgress(Math.min(90, 30 + (fullText.length / aiMaxTokens) * 60));
-              }
-            } catch { /* partial JSON, skip */ }
-          }
-        }
-
-        // Process final text
-        let htmlContent = fullText;
-        const codeBlockMatch = htmlContent.match(/```html?\s*([\s\S]*?)```/);
-        if (codeBlockMatch) htmlContent = codeBlockMatch[1].trim();
-
-        if (!htmlContent.includes("<!DOCTYPE") && !htmlContent.includes("<html")) {
-          throw new Error("AI did not return valid HTML. Please try again.");
-        }
-
-        setAiProgress(100);
-        setAiPreviewHtml(htmlContent);
-        toast({ title: "AI template generated! Review below." });
-
-      } else {
-        // Straico - non-streaming
-        setAiProgress(30);
-        const model = aiModel || "openai/gpt-4o";
-        const response = await fetch("https://api.straico.com/v0/prompt/completion", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${key}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model,
-            message: `${systemPrompt}\n\nUser request: ${aiPrompt}`,
-            temperature: aiTemperature,
-            max_tokens: aiMaxTokens,
-          }),
-        });
-
-        setAiProgress(60);
-
-        if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(`API error ${response.status}: ${errText}`);
-        }
-
-        const data = await response.json();
-        setAiProgress(80);
-
-        let htmlContent = "";
-        // Straico response structure
-        htmlContent = data.data?.completion?.choices?.[0]?.message?.content ||
-                      data.data?.completion ||
-                      data.completion?.choices?.[0]?.message?.content ||
-                      data.completion || "";
-
-        if (typeof htmlContent === "object") {
-          htmlContent = JSON.stringify(htmlContent);
-        }
-
-        setAiStreamingText(htmlContent);
-
-        const codeBlockMatch = htmlContent.match(/```html?\s*([\s\S]*?)```/);
-        if (codeBlockMatch) htmlContent = codeBlockMatch[1].trim();
-
-        if (!htmlContent.includes("<!DOCTYPE") && !htmlContent.includes("<html")) {
-          throw new Error("AI did not return valid HTML. Please try again.");
-        }
-
-        setAiProgress(100);
-        setAiPreviewHtml(htmlContent);
-        toast({ title: "AI template generated! Review below." });
-      }
+      setAiProgress(100);
+      setAiPreviewHtml(extracted);
+      toast({ title: "AI template generated! Review below." });
     } catch (err: any) {
       if (err.name === "AbortError") {
         toast({ title: "Generation cancelled" });
@@ -369,14 +384,102 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
     }
   };
 
+  const handleFollowUp = async () => {
+    if (!followUpInput.trim() || aiGenerating) return;
+
+    setAiGenerating(true);
+    setAiStreamingText("");
+    setAiProgress(10);
+
+    try {
+      const newMessages: ChatMessage[] = [
+        ...chatHistory,
+        { role: "user", content: followUpInput },
+      ];
+
+      setAiProgress(30);
+      const fullText = await callAi(newMessages);
+
+      setChatHistory([
+        ...newMessages,
+        { role: "assistant", content: fullText },
+      ]);
+
+      const extracted = extractHtml(fullText);
+      if (extracted) {
+        setAiPreviewHtml(extracted);
+      }
+
+      setFollowUpInput("");
+      setAiProgress(100);
+      toast({ title: "Follow-up response received!" });
+    } catch (err: any) {
+      toast({ title: "Follow-up failed", description: err.message, variant: "destructive" });
+    } finally {
+      setAiGenerating(false);
+      abortRef.current = null;
+    }
+  };
+
   const handleApproveAiHtml = () => {
     if (!aiPreviewHtml) return;
     setHtml(aiPreviewHtml);
     setAiOpen(false);
     setAiPreviewHtml(null);
     setAiStreamingText("");
+    setChatHistory([]);
     toast({ title: "AI HTML applied! Don't forget to Save." });
   };
+
+  // Generate prompt for external use
+  const generatePromptText = () => {
+    const variablesList = availableVars.map(v => `{{${v}}}`).join(", ");
+    const sampleRow = sampleData ? Object.entries(sampleData).map(([k, v]) => `  ${k}: ${v}`).join("\n") : "";
+    const guidelines = project?.brand_guidelines || "";
+
+    const prompt = `Create a complete, professional, responsive HTML page template for a directory/listing website.
+
+## Requirements:
+- Use these template variables for dynamic content: ${variablesList}
+- Variables should be placed as {{variable_name}} in the HTML
+- Include ALL CSS inline in a <style> tag within <head>
+- The page should be fully self-contained (single HTML file)
+- Use semantic HTML5 elements
+- Make it mobile-responsive
+- Include proper meta tags
+
+## Sample Data Row:
+${sampleRow}
+
+${guidelines ? `## Brand Guidelines:\n${guidelines}\n` : ""}
+## Template Variables Available:
+${availableVars.map(v => `- {{${v}}}`).join("\n")}
+
+## Output:
+Return ONLY the complete HTML code starting with <!DOCTYPE html>. No explanations or markdown.`;
+
+    setGeneratedPrompt(prompt);
+    setPromptGenOpen(true);
+  };
+
+  const downloadPrompt = () => {
+    const blob = new Blob([generatedPrompt], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${template.name.replace(/\s+/g, "-").toLowerCase()}-prompt.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "Prompt downloaded!" });
+  };
+
+  const copyPrompt = () => {
+    navigator.clipboard.writeText(generatedPrompt);
+    toast({ title: "Prompt copied to clipboard!" });
+  };
+
+  // Chat messages for display (exclude system)
+  const displayMessages = chatHistory.filter(m => m.role !== "system");
 
   return (
     <div className="space-y-4">
@@ -400,6 +503,9 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={generatePromptText}>
+            <FileDown className="h-4 w-4 mr-1" /> Get Prompt
+          </Button>
           <Button variant="outline" size="sm" onClick={openAiDialog}>
             <Wand2 className="h-4 w-4 mr-1" /> AI Generate
           </Button>
@@ -412,7 +518,7 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
         </div>
       </div>
 
-      {/* Variable chips - scrollable, show ALL variables */}
+      {/* Variable chips */}
       {availableVars.length > 0 && (
         <ScrollArea className="max-h-[10rem]">
           <div className="flex flex-wrap gap-1.5">
@@ -440,15 +546,10 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
         </div>
       </div>
 
-      {/* Editor / Preview / Data Preview */}
+      {/* Editor / Preview / Data */}
       {previewMode ? (
         <div className="border rounded-lg overflow-hidden bg-card" style={{ height: "70vh" }}>
-          <iframe
-            title="Template Preview"
-            srcDoc={renderPreview()}
-            className="w-full h-full"
-            sandbox="allow-same-origin"
-          />
+          <iframe title="Template Preview" srcDoc={renderPreview()} className="w-full h-full" sandbox="allow-same-origin" />
         </div>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-2">
@@ -461,24 +562,12 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
           </TabsList>
           <TabsContent value="html">
             <div className="border rounded-lg overflow-hidden" style={{ height: "65vh" }}>
-              <Editor
-                language="html"
-                value={html}
-                onChange={(v) => setHtml(v || "")}
-                theme="vs-dark"
-                options={{ minimap: { enabled: false }, fontSize: 14, wordWrap: "on", lineNumbers: "on" }}
-              />
+              <Editor language="html" value={html} onChange={(v) => setHtml(v || "")} theme="vs-dark" options={{ minimap: { enabled: false }, fontSize: 14, wordWrap: "on", lineNumbers: "on" }} />
             </div>
           </TabsContent>
           <TabsContent value="css">
             <div className="border rounded-lg overflow-hidden" style={{ height: "65vh" }}>
-              <Editor
-                language="css"
-                value={css}
-                onChange={(v) => setCss(v || "")}
-                theme="vs-dark"
-                options={{ minimap: { enabled: false }, fontSize: 14, wordWrap: "on" }}
-              />
+              <Editor language="css" value={css} onChange={(v) => setCss(v || "")} theme="vs-dark" options={{ minimap: { enabled: false }, fontSize: 14, wordWrap: "on" }} />
             </div>
           </TabsContent>
           <TabsContent value="data">
@@ -498,9 +587,7 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
                       <TableRow key={i}>
                         <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
                         {previewColumns.map((col) => (
-                          <TableCell key={col} className="whitespace-nowrap max-w-[200px] truncate text-xs">
-                            {row[col] ?? ""}
-                          </TableCell>
+                          <TableCell key={col} className="whitespace-nowrap max-w-[200px] truncate text-xs">{row[col] ?? ""}</TableCell>
                         ))}
                       </TableRow>
                     ))}
@@ -540,7 +627,7 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
             </div>
           </DialogHeader>
 
-          {/* Progress bar during generation */}
+          {/* Progress bar */}
           {aiGenerating && (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
@@ -551,9 +638,9 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
             </div>
           )}
 
-          {!aiPreviewHtml && !aiGenerating && !aiStreamingText ? (
+          {!aiPreviewHtml && !aiGenerating && !aiStreamingText && chatHistory.length === 0 ? (
             <div className="space-y-4">
-              {/* Settings panel (collapsible) */}
+              {/* Settings panel */}
               {showAiSettings && (
                 <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
                   <div className="grid grid-cols-2 gap-4">
@@ -569,62 +656,25 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
                     </div>
                     <div className="space-y-2">
                       <Label>Model</Label>
-                      <Input
-                        value={aiModel}
-                        onChange={(e) => setAiModel(e.target.value)}
-                        placeholder="e.g., openai/gpt-4o"
-                      />
+                      <Input value={aiModel} onChange={(e) => setAiModel(e.target.value)} placeholder="e.g., openai/gpt-4o" />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label>API Key</Label>
-                    <Input
-                      type="password"
-                      value={aiApiKey}
-                      onChange={(e) => setAiApiKey(e.target.value)}
-                      placeholder={aiProvider === "openrouter" ? "sk-or-..." : "straico_..."}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {project?.openrouter_api_key || project?.straico_api_key
-                        ? "Pre-filled from Project Settings. You can override here."
-                        : "Enter your API key. Save to Project Settings for reuse."}
-                    </p>
+                    <Input type="password" value={aiApiKey} onChange={(e) => setAiApiKey(e.target.value)} placeholder={aiProvider === "openrouter" ? "sk-or-..." : "straico_..."} />
                   </div>
-
-                  {/* Advanced: Temperature, Max Tokens, Top P */}
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs">Temperature: {aiTemperature}</Label>
-                      <Slider
-                        value={[aiTemperature]}
-                        onValueChange={([v]) => setAiTemperature(v)}
-                        min={0}
-                        max={2}
-                        step={0.1}
-                      />
-                      <p className="text-xs text-muted-foreground">Higher = more creative</p>
+                      <Slider value={[aiTemperature]} onValueChange={([v]) => setAiTemperature(v)} min={0} max={2} step={0.1} />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs">Max Tokens: {aiMaxTokens}</Label>
-                      <Slider
-                        value={[aiMaxTokens]}
-                        onValueChange={([v]) => setAiMaxTokens(v)}
-                        min={256}
-                        max={16384}
-                        step={256}
-                      />
-                      <p className="text-xs text-muted-foreground">Output length limit</p>
+                      <Slider value={[aiMaxTokens]} onValueChange={([v]) => setAiMaxTokens(v)} min={256} max={16384} step={256} />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs">Top P: {aiTopP}</Label>
-                      <Slider
-                        value={[aiTopP]}
-                        onValueChange={([v]) => setAiTopP(v)}
-                        min={0}
-                        max={1}
-                        step={0.05}
-                      />
-                      <p className="text-xs text-muted-foreground">Nucleus sampling</p>
+                      <Slider value={[aiTopP]} onValueChange={([v]) => setAiTopP(v)} min={0} max={1} step={0.05} />
                     </div>
                   </div>
                 </div>
@@ -632,22 +682,12 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
 
               <div className="space-y-2">
                 <Label>Describe the website you want</Label>
-                <Textarea
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  rows={4}
-                  placeholder="e.g., A modern business directory page with a hero image, rating stars, contact info section, and a clean card layout. Use blue and white color scheme."
-                />
+                <Textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} rows={4} placeholder="e.g., A modern business directory page with a hero image, rating stars, contact info section, and a clean card layout." />
               </div>
 
               <div className="space-y-2">
                 <Label>Brand Guidelines (optional)</Label>
-                <Textarea
-                  value={aiBrandGuidelines}
-                  onChange={(e) => setAiBrandGuidelines(e.target.value)}
-                  rows={3}
-                  placeholder="Brand voice, colors, fonts, tone, target audience..."
-                />
+                <Textarea value={aiBrandGuidelines} onChange={(e) => setAiBrandGuidelines(e.target.value)} rows={3} placeholder="Brand voice, colors, fonts, tone, target audience..." />
               </div>
 
               {availableVars.length > 0 && (
@@ -670,7 +710,6 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
               </DialogFooter>
             </div>
           ) : aiGenerating || (aiStreamingText && !aiPreviewHtml) ? (
-            /* Streaming output view */
             <div className="space-y-4">
               <div className="border rounded-lg overflow-hidden bg-muted/20" style={{ height: "50vh" }}>
                 <ScrollArea className="h-full">
@@ -682,9 +721,7 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
               </div>
               {aiGenerating && (
                 <div className="flex justify-end">
-                  <Button variant="outline" onClick={() => { abortRef.current?.abort(); }}>
-                    Cancel
-                  </Button>
+                  <Button variant="outline" onClick={() => { abortRef.current?.abort(); }}>Cancel</Button>
                 </div>
               )}
             </div>
@@ -694,25 +731,58 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
                 <TabsList>
                   <TabsTrigger value="preview"><Eye className="h-3 w-3 mr-1" /> Preview</TabsTrigger>
                   <TabsTrigger value="code"><Code className="h-3 w-3 mr-1" /> Code</TabsTrigger>
+                  {displayMessages.length > 0 && (
+                    <TabsTrigger value="chat"><MessageSquare className="h-3 w-3 mr-1" /> Chat ({displayMessages.length})</TabsTrigger>
+                  )}
                 </TabsList>
                 <TabsContent value="preview">
-                  <div className="border rounded-lg overflow-hidden" style={{ height: "55vh" }}>
+                  <div className="border rounded-lg overflow-hidden" style={{ height: "50vh" }}>
                     <iframe title="AI Preview" srcDoc={aiPreviewHtml} className="w-full h-full" sandbox="allow-same-origin" />
                   </div>
                 </TabsContent>
                 <TabsContent value="code">
-                  <div className="border rounded-lg overflow-hidden" style={{ height: "55vh" }}>
+                  <div className="border rounded-lg overflow-hidden" style={{ height: "50vh" }}>
                     <ScrollArea className="h-full">
-                      <pre className="p-4 text-xs font-mono whitespace-pre-wrap break-words text-foreground">
-                        {aiPreviewHtml}
-                      </pre>
+                      <pre className="p-4 text-xs font-mono whitespace-pre-wrap break-words text-foreground">{aiPreviewHtml}</pre>
+                    </ScrollArea>
+                  </div>
+                </TabsContent>
+                <TabsContent value="chat">
+                  <div className="border rounded-lg overflow-hidden" style={{ height: "50vh" }}>
+                    <ScrollArea className="h-full">
+                      <div className="p-4 space-y-4">
+                        {displayMessages.map((msg, i) => (
+                          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                            <div className={`max-w-[80%] rounded-lg p-3 text-sm ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                              <p className="text-xs font-semibold mb-1 opacity-70">{msg.role === "user" ? "You" : "AI"}</p>
+                              <p className="whitespace-pre-wrap break-words">{msg.content.length > 500 ? msg.content.slice(0, 500) + "..." : msg.content}</p>
+                            </div>
+                          </div>
+                        ))}
+                        <div ref={chatEndRef} />
+                      </div>
                     </ScrollArea>
                   </div>
                 </TabsContent>
               </Tabs>
+
+              {/* Follow-up input */}
+              <div className="flex gap-2">
+                <Input
+                  value={followUpInput}
+                  onChange={(e) => setFollowUpInput(e.target.value)}
+                  placeholder="Ask AI to modify... e.g., 'Make the header darker' or 'Add a contact form section'"
+                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleFollowUp()}
+                  disabled={aiGenerating}
+                />
+                <Button onClick={handleFollowUp} disabled={aiGenerating || !followUpInput.trim()} size="icon">
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+
               <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => { setAiPreviewHtml(null); setAiStreamingText(""); setAiProgress(0); }}>
-                  ← Regenerate
+                <Button variant="outline" onClick={() => { setAiPreviewHtml(null); setAiStreamingText(""); setAiProgress(0); setChatHistory([]); }}>
+                  ← Start Over
                 </Button>
                 <Button onClick={handleApproveAiHtml}>
                   <Sparkles className="h-4 w-4 mr-1" /> Approve & Apply to Template
@@ -720,6 +790,25 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
               </div>
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* Prompt Generator Dialog */}
+      <Dialog open={promptGenOpen} onOpenChange={setPromptGenOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><FileDown className="h-5 w-5" /> Website Prompt</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Use this prompt with ChatGPT, Gemini, Claude, or any AI to generate your HTML template.</p>
+          <Textarea value={generatedPrompt} onChange={(e) => setGeneratedPrompt(e.target.value)} rows={16} className="font-mono text-xs" />
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" onClick={copyPrompt}>
+              <Copy className="h-4 w-4 mr-1" /> Copy
+            </Button>
+            <Button onClick={downloadPrompt}>
+              <FileDown className="h-4 w-4 mr-1" /> Download .txt
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

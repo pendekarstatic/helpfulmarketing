@@ -31,7 +31,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, MoreVertical, Archive, Copy, Trash2, FolderOpen, Globe, Layers, Zap, LogOut, ArrowLeft } from "lucide-react";
+import { Plus, MoreVertical, Archive, Copy, Trash2, FolderOpen, Globe, Layers, Zap, LogOut, ArrowLeft, Settings } from "lucide-react";
+import GlobalSettingsDialog from "@/components/dashboard/GlobalSettingsDialog";
 
 type ProjectMode = "pseo" | "directory" | "hybrid";
 
@@ -53,6 +54,7 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [globalSettingsOpen, setGlobalSettingsOpen] = useState(false);
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["projects", showArchived],
@@ -182,6 +184,9 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setGlobalSettingsOpen(true)}>
+              <Settings className="h-4 w-4 mr-1" /> Defaults
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setShowArchived(!showArchived)}>
               <Archive className="h-4 w-4 mr-1" />
               {showArchived ? "Active" : "Archived"}
@@ -307,6 +312,7 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+      <GlobalSettingsDialog open={globalSettingsOpen} onOpenChange={setGlobalSettingsOpen} />
     </div>
   );
 }
