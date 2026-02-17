@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -317,6 +317,8 @@ interface FilterRule {
   variable: string;
   operator: "contains" | "equals" | "not_contains";
   value: string;
+  matchScope?: "any" | "all" | "specific";
+  matchVariables?: string[];
 }
 
 export default function TemplatesTab({ projectId, projectMode }: TemplatesTabProps) {
@@ -451,7 +453,6 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["templates", projectId] });
-      setConfigTemplateId(null);
       toast({ title: "Generation config saved!" });
     },
   });
@@ -600,6 +601,7 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {templates.map((t) => {
             const genMode = (t as any).generation_mode || "normal";
+            const filterRules = (t as any).filter_rules as FilterRule[] | null;
             return (
               <Card key={t.id} className="group hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3">
@@ -612,6 +614,11 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
                         {genMode !== "normal" && (
                           <Badge variant="outline" className="text-xs bg-accent/10 text-accent">
                             {genMode === "split" ? "Split" : "Combo"}
+                          </Badge>
+                        )}
+                        {filterRules && filterRules.length > 0 && (
+                          <Badge variant="outline" className="text-xs bg-primary/10 text-primary">
+                            {filterRules.length} filter{filterRules.length > 1 ? "s" : ""}
                           </Badge>
                         )}
                         <span className="text-xs">v{t.version}</span>
@@ -680,8 +687,8 @@ function GenerationConfigDialog({
   const [comboCol2, setComboCol2] = useState("");
   const [filters, setFilters] = useState<FilterRule[]>([]);
 
-  // Reset when template changes
-  useState(() => {
+  // Sync state when template changes
+  useEffect(() => {
     if (template) {
       setMode((template as any).generation_mode || "normal");
       setSplitColumn((template as any).split_column || "");
@@ -689,22 +696,25 @@ function GenerationConfigDialog({
       if (Array.isArray(cc) && cc.length >= 2) {
         setComboCol1(cc[0]);
         setComboCol2(cc[1]);
+      } else {
+        setComboCol1("");
+        setComboCol2("");
       }
       const fr = (template as any).filter_rules;
       if (Array.isArray(fr)) setFilters(fr);
       else setFilters([]);
     }
-  });
+  }, [template]);
 
   const addFilter = () => {
-    setFilters([...filters, { variable: variables[0] || "", operator: "contains", value: "" }]);
+    setFilters([...filters, { variable: variables[0] || "", operator: "contains", value: "", matchScope: "any" }]);
   };
 
   const removeFilter = (i: number) => {
     setFilters(filters.filter((_, idx) => idx !== i));
   };
 
-  const updateFilter = (i: number, field: keyof FilterRule, value: string) => {
+  const updateFilter = (i: number, field: keyof FilterRule, value: any) => {
     const updated = [...filters];
     updated[i] = { ...updated[i], [field]: value };
     setFilters(updated);
@@ -781,30 +791,46 @@ function GenerationConfigDialog({
                 <Plus className="h-3 w-3 mr-1" /> Add Filter
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">Only generate pages for rows matching these conditions.</p>
+            <p className="text-xs text-muted-foreground">
+              Only generate pages for rows matching these conditions. Use commas to match multiple values (e.g., "data,frontend" matches either).
+            </p>
 
             {filters.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {filters.map((f, i) => (
-                  <div key={i} className="flex gap-2 items-center">
-                    <Select value={f.variable} onValueChange={(v) => updateFilter(i, "variable", v)}>
-                      <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {variables.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Select value={f.operator} onValueChange={(v) => updateFilter(i, "operator", v)}>
-                      <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="contains">contains</SelectItem>
-                        <SelectItem value="equals">equals</SelectItem>
-                        <SelectItem value="not_contains">not contains</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Input value={f.value} onChange={(e) => updateFilter(i, "value", e.target.value)} placeholder="Value..." className="flex-1" />
-                    <Button variant="ghost" size="icon" onClick={() => removeFilter(i)} className="h-8 w-8 shrink-0">
-                      <Trash2 className="h-3 w-3 text-destructive" />
-                    </Button>
+                  <div key={i} className="space-y-2 border rounded-lg p-3 bg-muted/20">
+                    <div className="flex gap-2 items-center">
+                      <Select value={f.variable} onValueChange={(v) => updateFilter(i, "variable", v)}>
+                        <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {variables.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Select value={f.operator} onValueChange={(v) => updateFilter(i, "operator", v)}>
+                        <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="contains">contains</SelectItem>
+                          <SelectItem value="equals">equals</SelectItem>
+                          <SelectItem value="not_contains">not contains</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input value={f.value} onChange={(e) => updateFilter(i, "value", e.target.value)} placeholder="value1,value2,..." className="flex-1" />
+                      <Button variant="ghost" size="icon" onClick={() => removeFilter(i)} className="h-8 w-8 shrink-0">
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </div>
+                    {/* Match scope */}
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs text-muted-foreground whitespace-nowrap">Search in:</Label>
+                      <Select value={f.matchScope || "any"} onValueChange={(v) => updateFilter(i, "matchScope", v)}>
+                        <SelectTrigger className="h-7 w-auto text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="any">Any variable (match in any column)</SelectItem>
+                          <SelectItem value="all">All variables (match in every column)</SelectItem>
+                          <SelectItem value="specific">This variable only</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 ))}
               </div>

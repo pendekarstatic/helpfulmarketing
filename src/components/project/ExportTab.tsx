@@ -18,7 +18,6 @@ function extractAndSplitAssets(html: string): { cleanHtml: string; css: string; 
   let js = "";
   let cleanHtml = html;
 
-  // Extract inline <style> tags
   const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
   let match;
   while ((match = styleRegex.exec(html)) !== null) {
@@ -26,19 +25,17 @@ function extractAndSplitAssets(html: string): { cleanHtml: string; css: string; 
   }
   cleanHtml = cleanHtml.replace(styleRegex, "");
 
-  // Extract inline <script> tags (not src-based)
   const scriptRegex = /<script(?![^>]*\bsrc\b)[^>]*>([\s\S]*?)<\/script>/gi;
   while ((match = scriptRegex.exec(html)) !== null) {
     js += match[1].trim() + "\n";
   }
   cleanHtml = cleanHtml.replace(scriptRegex, "");
 
-  // Inject link to shared CSS and JS
   if (css) {
-      cleanHtml = cleanHtml.replace("</head>", `  <link rel="stylesheet" href="/assets/styles.css">\n</head>`);
+    cleanHtml = cleanHtml.replace("</head>", `  <link rel="stylesheet" href="/assets/styles.css">\n</head>`);
   }
   if (js) {
-      cleanHtml = cleanHtml.replace("</body>", `  <script src="/assets/scripts.js"></script>\n</body>`);
+    cleanHtml = cleanHtml.replace("</body>", `  <script src="/assets/scripts.js"></script>\n</body>`);
   }
   return { cleanHtml, css, js };
 }
@@ -65,6 +62,20 @@ export default function ExportTab({ projectId, project }: ExportTabProps) {
   const maxUrls = Math.min(project.sitemap_max_urls || 50000, 50000);
   const separateSitemaps = project.sitemap_separate ?? true;
   const splitAssets = project.split_assets ?? true;
+
+  // Collect unique filter tags from pages
+  const getFilterGroups = (): Map<string, any[]> => {
+    const groups = new Map<string, any[]>();
+    for (const p of allPages) {
+      const data = p.data as any;
+      const filterTag = data?._filter_tag;
+      if (filterTag) {
+        if (!groups.has(filterTag)) groups.set(filterTag, []);
+        groups.get(filterTag)!.push(p);
+      }
+    }
+    return groups;
+  };
 
   const getExportPath = (page: any): string => {
     const raw = (page.url_path || `/${page.slug}`).replace(/^\//, "");
@@ -112,7 +123,6 @@ export default function ExportTab({ projectId, project }: ExportTabProps) {
         }
       }
 
-      // Write shared CSS/JS files if split mode
       if (splitAssets) {
         if (globalCss.trim()) {
           const uniqueCss = [...new Set(globalCss.split("\n").filter(l => l.trim()))].join("\n");
@@ -124,7 +134,6 @@ export default function ExportTab({ projectId, project }: ExportTabProps) {
         }
       }
 
-      // Index HTML
       const indexCssLink = splitAssets && globalCss.trim() ? `<link rel="stylesheet" href="/assets/styles.css">` : "";
       const indexHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -137,11 +146,11 @@ export default function ExportTab({ projectId, project }: ExportTabProps) {
   ${indexCssLink}
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: ${project.font_family || "system-ui"}, sans-serif; background: ${project.theme === "dark" ? "#1a1a2e" : "#fafafa"}; color: ${project.theme === "dark" ? "#e2e8f0" : "#1a1a2e"}; padding: 2rem; }
+    body { font-family: ${project.font_family || "system-ui"}, sans-serif; background: #fafafa; color: #1a1a2e; padding: 2rem; }
     .container { max-width: 800px; margin: 0 auto; }
     h1 { font-size: 2rem; margin-bottom: 1.5rem; }
     .links { display: flex; flex-direction: column; gap: 0.5rem; }
-    a { color: ${project.primary_color || "#5b4fe0"}; text-decoration: none; padding: 0.75rem 1rem; background: ${project.theme === "dark" ? "#16213e" : "white"}; border-radius: 8px; border: 1px solid ${project.theme === "dark" ? "#2d3748" : "#e2e8f0"}; }
+    a { color: ${project.primary_color || "#5b4fe0"}; text-decoration: none; padding: 0.75rem 1rem; background: white; border-radius: 8px; border: 1px solid #e2e8f0; }
     a:hover { opacity: 0.85; }
   </style>
   ${project.analytics_code || ""}
@@ -161,7 +170,9 @@ export default function ExportTab({ projectId, project }: ExportTabProps) {
 
       const domain = getDomain();
 
-      // Generate sitemaps
+      // Generate sitemaps including filter-based sitemaps
+      const filterGroups = getFilterGroups();
+
       if (separateSitemaps) {
         const pagesToSitemap = (publishedPages.length > 0 ? publishedPages : allPages).slice(0, maxUrls);
         const categories: Record<string, any[]> = {};
@@ -190,6 +201,14 @@ export default function ExportTab({ projectId, project }: ExportTabProps) {
           sitemapFiles.push("sitemap-pages.xml");
         }
 
+        // Add filter-based sitemaps
+        filterGroups.forEach((filterPages, filterTag) => {
+          const filterSlug = filterTag.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 50);
+          const filename = `sitemap-filter-${filterSlug}.xml`;
+          zip.file(filename, generateSitemap(filterPages, domain));
+          sitemapFiles.push(filename);
+        });
+
         if (sitemapFiles.length === 0) {
           zip.file("sitemap-pages.xml", generateSitemap(pagesToSitemap, domain));
           sitemapFiles.push("sitemap-pages.xml");
@@ -210,7 +229,7 @@ ${sitemapFiles.map((f) => `  <sitemap>\n    <loc>${domain}/${f}</loc>\n    <last
 
       const blob = await zip.generateAsync({ type: "blob" });
       saveAs(blob, `${project.slug || "export"}-pages.zip`);
-      toast({ title: "Export complete!", description: `${pagesToExport.length} pages exported${splitAssets ? " with shared CSS/JS" : ""}.` });
+      toast({ title: "Export complete!", description: `${pagesToExport.length} pages exported${splitAssets ? " with shared CSS/JS" : ""}${filterGroups.size > 0 ? ` + ${filterGroups.size} filter sitemaps` : ""}.` });
     } finally {
       setExporting(null);
     }
@@ -220,6 +239,7 @@ ${sitemapFiles.map((f) => `  <sitemap>\n    <loc>${domain}/${f}</loc>\n    <last
     setExporting("sitemap");
     const domain = getDomain();
     const pagesToExport = (publishedPages.length > 0 ? publishedPages : allPages).slice(0, maxUrls);
+    const filterGroups = getFilterGroups();
 
     if (separateSitemaps) {
       const zip = new JSZip();
@@ -247,6 +267,15 @@ ${sitemapFiles.map((f) => `  <sitemap>\n    <loc>${domain}/${f}</loc>\n    <last
         zip.file("sitemap-pages.xml", generateSitemap(uncategorized, domain));
         sitemapFiles.push("sitemap-pages.xml");
       }
+
+      // Add filter-based sitemaps
+      filterGroups.forEach((filterPages, filterTag) => {
+        const filterSlug = filterTag.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 50);
+        const filename = `sitemap-filter-${filterSlug}.xml`;
+        zip.file(filename, generateSitemap(filterPages, domain));
+        sitemapFiles.push(filename);
+      });
+
       if (sitemapFiles.length === 0) {
         zip.file("sitemap-pages.xml", generateSitemap(pagesToExport, domain));
         sitemapFiles.push("sitemap-pages.xml");
@@ -260,7 +289,7 @@ ${sitemapFiles.map((f) => `  <sitemap>\n    <loc>${domain}/${f}</loc>\n    <last
 
       zip.generateAsync({ type: "blob" }).then((blob) => {
         saveAs(blob, "sitemaps.zip");
-        toast({ title: "Sitemaps exported!", description: `${sitemapFiles.length + 1} sitemap files.` });
+        toast({ title: "Sitemaps exported!", description: `${sitemapFiles.length + 1} sitemap files${filterGroups.size > 0 ? ` (including ${filterGroups.size} filter sitemaps)` : ""}.` });
       });
     } else {
       const sitemap = generateSitemap(pagesToExport, domain);
@@ -288,6 +317,8 @@ ${sitemapFiles.map((f) => `  <sitemap>\n    <loc>${domain}/${f}</loc>\n    <last
     setExporting(null);
   };
 
+  const filterGroups = getFilterGroups();
+
   return (
     <div className="space-y-6">
       <div>
@@ -295,6 +326,7 @@ ${sitemapFiles.map((f) => `  <sitemap>\n    <loc>${domain}/${f}</loc>\n    <last
         <p className="text-sm text-muted-foreground">
           Download your generated pages and sitemaps
           {splitAssets && " · CSS & JS will be split into shared files"}
+          {filterGroups.size > 0 && ` · ${filterGroups.size} filter-based sitemaps`}
         </p>
       </div>
 
@@ -321,7 +353,7 @@ ${sitemapFiles.map((f) => `  <sitemap>\n    <loc>${domain}/${f}</loc>\n    <last
               <Globe className="h-6 w-6" />
             </div>
             <CardTitle className="text-base">XML Sitemap{separateSitemaps ? "s" : ""}</CardTitle>
-            <CardDescription>{separateSitemaps ? "Sitemap index + category sitemaps" : "Single sitemap.xml"}</CardDescription>
+            <CardDescription>{separateSitemaps ? "Sitemap index + category sitemaps" : "Single sitemap.xml"}{filterGroups.size > 0 ? ` + ${filterGroups.size} filter sitemaps` : ""}</CardDescription>
           </CardHeader>
           <CardContent>
             <Button className="w-full" variant="outline" onClick={exportSitemap} disabled={exporting === "sitemap"}>
