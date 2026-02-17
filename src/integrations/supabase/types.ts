@@ -261,8 +261,11 @@ export type Database = {
       }
       templates: {
         Row: {
+          combo_columns: Json | null
           created_at: string
           css_content: string | null
+          filter_rules: Json | null
+          generation_mode: string
           html_content: string
           id: string
           is_builtin: boolean
@@ -271,6 +274,7 @@ export type Database = {
           name: string
           project_id: string | null
           schema_type: string | null
+          split_column: string | null
           template_type: Database["public"]["Enums"]["template_type"]
           updated_at: string
           url_pattern: string | null
@@ -278,8 +282,11 @@ export type Database = {
           version: number
         }
         Insert: {
+          combo_columns?: Json | null
           created_at?: string
           css_content?: string | null
+          filter_rules?: Json | null
+          generation_mode?: string
           html_content?: string
           id?: string
           is_builtin?: boolean
@@ -288,6 +295,7 @@ export type Database = {
           name: string
           project_id?: string | null
           schema_type?: string | null
+          split_column?: string | null
           template_type?: Database["public"]["Enums"]["template_type"]
           updated_at?: string
           url_pattern?: string | null
@@ -295,8 +303,11 @@ export type Database = {
           version?: number
         }
         Update: {
+          combo_columns?: Json | null
           created_at?: string
           css_content?: string | null
+          filter_rules?: Json | null
+          generation_mode?: string
           html_content?: string
           id?: string
           is_builtin?: boolean
@@ -305,6 +316,7 @@ export type Database = {
           name?: string
           project_id?: string | null
           schema_type?: string | null
+          split_column?: string | null
           template_type?: Database["public"]["Enums"]["template_type"]
           updated_at?: string
           url_pattern?: string | null
@@ -320,6 +332,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_settings: {
+        Row: {
+          created_at: string
+          id: string
+          settings: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          settings?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          settings?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {
