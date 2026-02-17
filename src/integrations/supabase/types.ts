@@ -430,7 +430,7 @@ export type Database = {
         | "google_oauth"
         | "apps_script_webhook"
       page_status: "draft" | "published" | "archived"
-      project_mode: "pseo" | "directory" | "hybrid"
+      project_mode: "pseo" | "directory" | "hybrid" | "local_seo"
       template_type:
         | "listing_detail"
         | "category_page"
@@ -574,7 +574,7 @@ export const Constants = {
         "apps_script_webhook",
       ],
       page_status: ["draft", "published", "archived"],
-      project_mode: ["pseo", "directory", "hybrid"],
+      project_mode: ["pseo", "directory", "hybrid", "local_seo"],
       template_type: [
         "listing_detail",
         "category_page",

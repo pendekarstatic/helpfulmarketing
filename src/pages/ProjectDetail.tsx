@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Database, FileCode, FileText, Search, Download, Settings, Home } from "lucide-react";
+import { ArrowLeft, Database, FileCode, FileText, Search, Download, Settings, Home, MapPin } from "lucide-react";
 import DataSourcesTab from "@/components/project/DataSourcesTab";
 import TemplatesTab from "@/components/project/TemplatesTab";
 import CustomPagesTab from "@/components/project/CustomPagesTab";
@@ -13,6 +13,7 @@ import PagesTab from "@/components/project/PagesTab";
 import SeoTab from "@/components/project/SeoTab";
 import ExportTab from "@/components/project/ExportTab";
 import ProjectSettingsTab from "@/components/project/ProjectSettingsTab";
+import LocalSeoTab from "@/components/project/LocalSeoTab";
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -82,6 +83,9 @@ export default function ProjectDetail() {
             <TabsTrigger value="pages" className="gap-1.5">
               <FileText className="h-4 w-4" /> Pages
             </TabsTrigger>
+            <TabsTrigger value="local-seo" className="gap-1.5">
+              <MapPin className="h-4 w-4" /> Local SEO
+            </TabsTrigger>
             <TabsTrigger value="seo" className="gap-1.5">
               <Search className="h-4 w-4" /> SEO
             </TabsTrigger>
@@ -104,6 +108,9 @@ export default function ProjectDetail() {
           </TabsContent>
           <TabsContent value="pages">
             <PagesTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="local-seo">
+            <LocalSeoTab projectId={project.id} project={project} />
           </TabsContent>
           <TabsContent value="seo">
             <SeoTab projectId={project.id} project={project} />

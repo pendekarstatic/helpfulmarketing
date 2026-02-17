@@ -102,6 +102,7 @@ export default function ProjectSettingsTab({ project }: ProjectSettingsTabProps)
                   <SelectItem value="directory">Directory</SelectItem>
                   <SelectItem value="pseo">pSEO</SelectItem>
                   <SelectItem value="hybrid">Hybrid</SelectItem>
+                  <SelectItem value="local_seo">Local SEO</SelectItem>
                 </SelectContent>
               </Select>
             </div>

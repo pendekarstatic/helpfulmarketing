@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { FileText, Eye, Trash2, Wand2, Edit, Save, ChevronDown, ChevronUp, ExternalLink, RefreshCw } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
@@ -30,6 +31,7 @@ export default function PagesTab({ projectId }: PagesTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<string>("created_at");
   const [sortAsc, setSortAsc] = useState(false);
+  const [genProgress, setGenProgress] = useState<{ current: number; total: number; template: string } | null>(null);
 
   const { data: pages = [] } = useQuery({
     queryKey: ["pages", projectId],
@@ -94,16 +96,13 @@ export default function PagesTab({ projectId }: PagesTabProps) {
     }
   };
 
-  // Updated filter logic: supports comma-separated values and matchScope
   const applyFilters = (rows: any[], filterRules: any[]): any[] => {
     if (!filterRules || filterRules.length === 0) return rows;
     return rows.filter(row => {
       return filterRules.every((f: any) => {
         const filterValues = String(f.value ?? "").split(",").map((v: string) => v.trim().toLowerCase()).filter(Boolean);
         if (filterValues.length === 0) return true;
-        
         const matchScope = f.matchScope || "specific";
-        
         const checkValue = (cellValue: string): boolean => {
           const val = cellValue.toLowerCase();
           switch (f.operator) {
@@ -113,24 +112,15 @@ export default function PagesTab({ projectId }: PagesTabProps) {
             default: return true;
           }
         };
-        
-        if (matchScope === "any") {
-          // Match if ANY variable/column contains the value
-          return Object.values(row).some(v => checkValue(String(v ?? "")));
-        } else if (matchScope === "all") {
-          // Match if ALL variables/columns contain the value
-          return Object.values(row).every(v => checkValue(String(v ?? "")));
-        } else {
-          // specific: match only the specified variable
-          return checkValue(String(row[f.variable] ?? ""));
-        }
+        if (matchScope === "any") return Object.values(row).some(v => checkValue(String(v ?? "")));
+        if (matchScope === "all") return Object.values(row).every(v => checkValue(String(v ?? "")));
+        return checkValue(String(row[f.variable] ?? ""));
       });
     });
   };
 
   const expandRows = (rows: any[], template: any): any[] => {
     const genMode = (template as any).generation_mode || "normal";
-    
     if (genMode === "split") {
       const splitCol = (template as any).split_column;
       if (!splitCol) return rows;
@@ -138,31 +128,21 @@ export default function PagesTab({ projectId }: PagesTabProps) {
       for (const row of rows) {
         const val = String(row[splitCol] || "");
         const parts = val.split(",").map((s: string) => s.trim()).filter(Boolean);
-        if (parts.length <= 1) {
-          expanded.push(row);
-        } else {
-          for (const part of parts) {
-            expanded.push({ ...row, [splitCol]: part });
-          }
-        }
+        if (parts.length <= 1) expanded.push(row);
+        else for (const part of parts) expanded.push({ ...row, [splitCol]: part });
       }
       return expanded;
     }
-    
     if (genMode === "combo") {
       const comboCols = (template as any).combo_columns;
       if (!Array.isArray(comboCols) || comboCols.length < 2) return rows;
       const [colA, colB] = comboCols;
-      
       const valuesA = new Set<string>();
       const valuesB = new Set<string>();
       for (const row of rows) {
-        const aVals = String(row[colA] || "").split(",").map((s: string) => s.trim()).filter(Boolean);
-        const bVals = String(row[colB] || "").split(",").map((s: string) => s.trim()).filter(Boolean);
-        aVals.forEach((v: string) => valuesA.add(v));
-        bVals.forEach((v: string) => valuesB.add(v));
+        String(row[colA] || "").split(",").map((s: string) => s.trim()).filter(Boolean).forEach((v: string) => valuesA.add(v));
+        String(row[colB] || "").split(",").map((s: string) => s.trim()).filter(Boolean).forEach((v: string) => valuesB.add(v));
       }
-      
       const baseRow = rows[0] || {};
       const expanded: any[] = [];
       for (const a of valuesA) {
@@ -172,15 +152,41 @@ export default function PagesTab({ projectId }: PagesTabProps) {
       }
       return expanded;
     }
-    
     return rows;
+  };
+
+  // Build a compact listings summary for injection (only key fields, limited size)
+  const buildListingsJson = (allRows: any[]): string => {
+    const compact = allRows.map(r => ({
+      hotel_name: r.hotel_name || r.title || '',
+      slug: (r.slug || '').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      city: r.city || '',
+      country: r.country || '',
+      district: r.district || '',
+      category: r.category || '',
+      brand_name: r.brand_name || '',
+      property_type: r.property_type || '',
+      stars: r.stars || '',
+      rating: r.rating || '',
+      number_of_reviews: r.number_of_reviews || '',
+      price_per_night: r.price_per_night || '',
+      photo_url: r.photo_url || '',
+      amenities: r.amenities || '',
+      bedrooms: r.bedrooms || '',
+      description: (r.description || '').substring(0, 100),
+    }));
+    return JSON.stringify(compact);
   };
 
   const generatePages = useMutation({
     mutationFn: async ({ templateId, regenerate }: { templateId: string; regenerate?: boolean }) => {
       setGenerating(true);
+      setGenProgress({ current: 0, total: 0, template: '' });
       const template = templates.find((t) => t.id === templateId);
       if (!template) throw new Error("Template not found");
+
+      setGenProgress(prev => ({ ...prev!, template: template.name }));
+
       let allRows: any[] = [];
       for (const ds of dataSources) {
         if (Array.isArray(ds.cached_data)) allRows.push(...(ds.cached_data as any[]));
@@ -190,7 +196,6 @@ export default function PagesTab({ projectId }: PagesTabProps) {
       const filterRules = (template as any).filter_rules;
       allRows = applyFilters(allRows, filterRules);
       allRows = expandRows(allRows, template);
-
       if (allRows.length === 0) throw new Error("No rows match the filter rules.");
 
       const existingSlugs = new Set(
@@ -212,13 +217,16 @@ export default function PagesTab({ projectId }: PagesTabProps) {
       const headerHtml = (project as any)?.header_content || "";
       const footerHtml = (project as any)?.footer_content || "";
 
+      // Pre-build listings JSON once
+      const listingsJson = buildListingsJson(allRows);
+      const listingsScript = `<script>window.__ALL_LISTINGS__=${listingsJson};</script>`;
+
       const pagesToInsert = allRows
         .map((row) => {
           let html = template.html_content;
-          const title = row.title || row.name || row.Name || row.Title || 
-                        Object.values(row).find((v) => typeof v === "string" && (v as string).trim()) || "Untitled";
+          const title = row.title || row.name || row.Name || row.Title ||
+            Object.values(row).find((v) => typeof v === "string" && (v as string).trim()) || "Untitled";
           const slug = (row.slug || String(title)).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-
           if (existingSlugs.has(slug)) return null;
           existingSlugs.add(slug);
 
@@ -256,32 +264,11 @@ export default function PagesTab({ projectId }: PagesTabProps) {
             if (footerHtml) html = html.replace("</body>", `${footerHtml}\n</body>`);
           }
 
-          // Process spintax in HTML content
           html = spinText(html);
 
-          // Inject ALL_LISTINGS data for recommendations/SRP dynamic rendering
-          const listingsJson = JSON.stringify(allRows.map(r => ({
-            hotel_name: r.hotel_name || r.title || '',
-            slug: (r.slug || '').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-            city: r.city || '',
-            country: r.country || '',
-            district: r.district || '',
-            category: r.category || '',
-            brand_name: r.brand_name || '',
-            property_type: r.property_type || '',
-            stars: r.stars || '',
-            rating: r.rating || '',
-            number_of_reviews: r.number_of_reviews || '',
-            price_per_night: r.price_per_night || '',
-            photo_url: r.photo_url || '',
-            amenities: r.amenities || '',
-            bedrooms: r.bedrooms || '',
-            description: (r.description || '').substring(0, 150),
-          })));
-          const listingsScript = `<script>window.__ALL_LISTINGS__=${listingsJson};</script>`;
+          // Inject listings data for recommendations/SRP
           html = html.replace("</head>", `${listingsScript}\n</head>`);
 
-          // Store which filter was used for sitemap grouping
           const filterTag = filterRules && filterRules.length > 0
             ? filterRules.map((f: any) => `${f.variable}:${f.value}`).join("|")
             : null;
@@ -306,17 +293,30 @@ export default function PagesTab({ projectId }: PagesTabProps) {
         throw new Error("No new pages to generate. All data rows already have pages.");
       }
 
-      const { error } = await supabase.from("pages").insert(pagesToInsert);
-      if (error) throw error;
-      return pagesToInsert.length;
+      // Batch insert in chunks of 10 with progress updates
+      const BATCH_SIZE = 10;
+      let inserted = 0;
+      setGenProgress({ current: 0, total: pagesToInsert.length, template: template.name });
+
+      for (let i = 0; i < pagesToInsert.length; i += BATCH_SIZE) {
+        const batch = pagesToInsert.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from("pages").insert(batch);
+        if (error) throw error;
+        inserted += batch.length;
+        setGenProgress({ current: inserted, total: pagesToInsert.length, template: template.name });
+      }
+
+      return inserted;
     },
     onSuccess: (count) => {
       setGenerating(false);
+      setGenProgress(null);
       queryClient.invalidateQueries({ queryKey: ["pages", projectId] });
-      toast({ title: `${count} pages generated (duplicates skipped)!` });
+      toast({ title: `${count} pages generated!` });
     },
     onError: (err: any) => {
       setGenerating(false);
+      setGenProgress(null);
       toast({ title: "Generation failed", description: err.message, variant: "destructive" });
     },
   });
@@ -384,11 +384,7 @@ export default function PagesTab({ projectId }: PagesTabProps) {
 
   const openPreviewNewTab = (html: string, title: string) => {
     const w = window.open("", "_blank");
-    if (w) {
-      w.document.write(html);
-      w.document.close();
-      w.document.title = title;
-    }
+    if (w) { w.document.write(html); w.document.close(); w.document.title = title; }
   };
 
   const templateNames = new Map<string, string>();
@@ -411,9 +407,7 @@ export default function PagesTab({ projectId }: PagesTabProps) {
       if (p.url_path?.toLowerCase().includes(q)) return true;
       if (p.meta_title?.toLowerCase().includes(q)) return true;
       if (p.meta_description?.toLowerCase().includes(q)) return true;
-      if (d && typeof d === "object") {
-        return Object.values(d).some((v) => String(v ?? "").toLowerCase().includes(q));
-      }
+      if (d && typeof d === "object") return Object.values(d).some((v) => String(v ?? "").toLowerCase().includes(q));
       return false;
     })
     .sort((a, b) => {
@@ -465,17 +459,19 @@ export default function PagesTab({ projectId }: PagesTabProps) {
               </Button>
             </>
           )}
-          {templates.length > 0 && (
+          {templates.filter(t => t.project_id === projectId).length > 0 && (
             <>
               <Button variant="default" size="sm" disabled={generating} onClick={async () => {
-                for (const t of templates) {
+                const projectTemplates = templates.filter(t => t.project_id === projectId);
+                for (const t of projectTemplates) {
                   try { await generatePages.mutateAsync({ templateId: t.id }); } catch {}
                 }
               }}>
                 <Wand2 className="h-4 w-4 mr-1" /> {generating ? "Generating..." : "Bulk Generate All"}
               </Button>
               <Button variant="outline" size="sm" disabled={generating} onClick={async () => {
-                for (const t of templates) {
+                const projectTemplates = templates.filter(t => t.project_id === projectId);
+                for (const t of projectTemplates) {
                   try { await generatePages.mutateAsync({ templateId: t.id, regenerate: true }); } catch {}
                 }
               }}>
@@ -486,7 +482,7 @@ export default function PagesTab({ projectId }: PagesTabProps) {
                   <span className="text-sm flex items-center gap-1"><Wand2 className="h-3 w-3" /> Generate</span>
                 </SelectTrigger>
                 <SelectContent>
-                  {templates.map((t) => (
+                  {templates.filter(t => t.project_id === projectId).map((t) => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -496,7 +492,7 @@ export default function PagesTab({ projectId }: PagesTabProps) {
                   <span className="text-sm flex items-center gap-1"><RefreshCw className="h-3 w-3" /> Regenerate</span>
                 </SelectTrigger>
                 <SelectContent>
-                  {templates.map((t) => (
+                  {templates.filter(t => t.project_id === projectId).map((t) => (
                     <SelectItem key={t.id} value={t.id}>{t.name} (replace existing)</SelectItem>
                   ))}
                 </SelectContent>
@@ -505,6 +501,20 @@ export default function PagesTab({ projectId }: PagesTabProps) {
           )}
         </div>
       </div>
+
+      {/* Progress Bar */}
+      {genProgress && genProgress.total > 0 && (
+        <Card>
+          <CardContent className="py-4 space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">Generating: {genProgress.template}</span>
+              <span className="text-muted-foreground">{genProgress.current} / {genProgress.total} pages</span>
+            </div>
+            <Progress value={(genProgress.current / genProgress.total) * 100} className="h-3" />
+            <p className="text-xs text-muted-foreground">{Math.round((genProgress.current / genProgress.total) * 100)}% complete</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters */}
       {pages.length > 0 && (
@@ -672,10 +682,8 @@ function generateJsonLd(schemaType: string, row: any, title: string, description
     name: title,
     description: description,
   };
-
   if (row.url) base.url = row.url;
   if (row.image) base.image = row.image;
-
   switch (schemaType) {
     case "LocalBusiness":
       if (row.location) base.address = { "@type": "PostalAddress", addressLocality: row.location };
@@ -691,9 +699,7 @@ function generateJsonLd(schemaType: string, row: any, title: string, description
       if (row.company) base.hiringOrganization = { "@type": "Organization", name: row.company };
       if (row.location) base.jobLocation = { "@type": "Place", address: row.location };
       break;
-    default:
-      break;
+    default: break;
   }
-
   return base;
 }
