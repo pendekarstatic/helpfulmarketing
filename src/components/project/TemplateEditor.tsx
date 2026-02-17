@@ -28,6 +28,8 @@ interface ChatMessage {
   content: string;
 }
 
+type AiMode = "html" | "enhance_prompt" | "default_prompt";
+
 export default function TemplateEditor({ template, projectId, onBack }: TemplateEditorProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -66,6 +68,7 @@ export default function TemplateEditor({ template, projectId, onBack }: Template
   const [aiProgress, setAiProgress] = useState(0);
   const [showAiSettings, setShowAiSettings] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const [aiMode, setAiMode] = useState<AiMode>("html");
 
   // AI advanced settings
   const [aiTemperature, setAiTemperature] = useState(0.7);
@@ -173,9 +176,32 @@ export default function TemplateEditor({ template, projectId, onBack }: Template
     return rendered;
   }, [html, css, sampleData]);
 
-  const buildSystemPrompt = () => {
+  const buildSystemPrompt = (mode: AiMode) => {
     const variablesList = availableVars.map(v => `{{${v}}}`).join(", ");
     const guidelines = aiBrandGuidelines || "";
+
+    if (mode === "enhance_prompt") {
+      return `You are an expert prompt engineer. The user wants to create a website template.
+Given their description, enhance and expand their prompt to be more detailed and specific.
+Include suggestions for layout, colors, typography, sections, and responsive design.
+Available template variables: ${variablesList}
+${guidelines ? `\nBrand Guidelines:\n${guidelines}` : ""}
+Return ONLY the enhanced prompt text. Do not return HTML.`;
+    }
+
+    if (mode === "default_prompt") {
+      return `You are an expert prompt generator. Based on the available data variables and brand guidelines, generate a comprehensive default prompt that the user can use with any AI to create an HTML template.
+Available template variables: ${variablesList}
+${guidelines ? `\nBrand Guidelines:\n${guidelines}` : ""}
+The prompt should describe:
+- Page structure and layout
+- How each variable should be displayed
+- Suggested styling approach
+- Responsive design considerations
+Return ONLY the prompt text. Do not return HTML.`;
+    }
+
+    // html mode
     return `You are an expert web designer. Generate a complete, beautiful, responsive HTML page template.
 The template must use these template variables for dynamic content: ${variablesList}
 Variables are injected as {{variable_name}} in the HTML.
@@ -189,7 +215,7 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
     setAiPreviewHtml(null);
     setAiStreamingText("");
     setAiProgress(0);
-    setAiPrompt("");
+    // Don't reset aiPrompt — keep user's previous prompt
     setChatHistory([]);
     setFollowUpInput("");
     setAiBrandGuidelines(project?.brand_guidelines || "");
@@ -347,9 +373,8 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
     setAiPreviewHtml(null);
 
     try {
-      const systemPrompt = buildSystemPrompt();
-      // Include current HTML context if it exists
-      const contextNote = html.trim() ? `\n\nThe current template HTML is:\n${html}\n\nPlease improve or regenerate based on the user's request.` : "";
+      const systemPrompt = buildSystemPrompt(aiMode);
+      const contextNote = aiMode === "html" && html.trim() ? `\n\nThe current template HTML is:\n${html}\n\nPlease improve or regenerate based on the user's request.` : "";
 
       const messages: ChatMessage[] = [
         { role: "system", content: systemPrompt + contextNote },
@@ -359,8 +384,16 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
       setAiProgress(30);
       const fullText = await callAi(messages);
 
-      const extracted = extractHtml(fullText);
-      if (!extracted) throw new Error("AI did not return valid HTML. Please try again.");
+      if (aiMode === "html") {
+        const extracted = extractHtml(fullText);
+        if (!extracted) throw new Error("AI did not return valid HTML. Please try again.");
+        setAiPreviewHtml(extracted);
+      } else {
+        // For prompt modes, show the generated prompt in the prompt generator dialog
+        setGeneratedPrompt(fullText);
+        setPromptGenOpen(true);
+        setAiOpen(false);
+      }
 
       // Save to chat history
       setChatHistory([
@@ -370,8 +403,7 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
       ]);
 
       setAiProgress(100);
-      setAiPreviewHtml(extracted);
-      toast({ title: "AI template generated! Review below." });
+      toast({ title: aiMode === "html" ? "AI template generated! Review below." : "Prompt generated!" });
     } catch (err: any) {
       if (err.name === "AbortError") {
         toast({ title: "Generation cancelled" });
@@ -424,10 +456,9 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
   const handleApproveAiHtml = () => {
     if (!aiPreviewHtml) return;
     setHtml(aiPreviewHtml);
-    setAiOpen(false);
     setAiPreviewHtml(null);
     setAiStreamingText("");
-    setChatHistory([]);
+    // Keep chat history and AI dialog open so user can continue iterating
     toast({ title: "AI HTML applied! Don't forget to Save." });
   };
 
@@ -612,7 +643,7 @@ Return ONLY the complete HTML code starting with <!DOCTYPE html>. No explanation
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
-              <DialogTitle className="flex items-center gap-2"><Wand2 className="h-5 w-5 text-primary" /> AI Website Generator</DialogTitle>
+              <DialogTitle className="flex items-center gap-2"><Wand2 className="h-5 w-5 text-primary" /> AI Generator</DialogTitle>
               <div className="flex gap-2">
                 <Button variant="ghost" size="sm" onClick={() => setShowAiSettings(!showAiSettings)}>
                   <Settings2 className="h-4 w-4 mr-1" /> Settings
@@ -640,6 +671,39 @@ Return ONLY the complete HTML code starting with <!DOCTYPE html>. No explanation
 
           {!aiPreviewHtml && !aiGenerating && !aiStreamingText && chatHistory.length === 0 ? (
             <div className="space-y-4">
+              {/* AI Mode Selection */}
+              <div className="space-y-2">
+                <Label>Generation Mode</Label>
+                <div className="flex gap-2">
+                  <Button
+                    variant={aiMode === "html" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setAiMode("html")}
+                  >
+                    <Code className="h-3 w-3 mr-1" /> HTML Website
+                  </Button>
+                  <Button
+                    variant={aiMode === "enhance_prompt" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setAiMode("enhance_prompt")}
+                  >
+                    <Sparkles className="h-3 w-3 mr-1" /> Enhance Prompt
+                  </Button>
+                  <Button
+                    variant={aiMode === "default_prompt" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setAiMode("default_prompt")}
+                  >
+                    <FileDown className="h-3 w-3 mr-1" /> Default Prompt
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {aiMode === "html" && "Generate a complete HTML website template with AI."}
+                  {aiMode === "enhance_prompt" && "AI will enhance your description into a detailed prompt for better results."}
+                  {aiMode === "default_prompt" && "AI generates a comprehensive prompt based on your data variables and brand."}
+                </p>
+              </div>
+
               {/* Settings panel */}
               {showAiSettings && (
                 <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
@@ -681,8 +745,12 @@ Return ONLY the complete HTML code starting with <!DOCTYPE html>. No explanation
               )}
 
               <div className="space-y-2">
-                <Label>Describe the website you want</Label>
-                <Textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} rows={4} placeholder="e.g., A modern business directory page with a hero image, rating stars, contact info section, and a clean card layout." />
+                <Label>{aiMode === "html" ? "Describe the website you want" : aiMode === "enhance_prompt" ? "Describe what you want (AI will enhance)" : "Additional context (optional)"}</Label>
+                <Textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} rows={4} placeholder={
+                  aiMode === "html" ? "e.g., A modern business directory page with a hero image, rating stars, contact info section, and a clean card layout."
+                  : aiMode === "enhance_prompt" ? "e.g., Property listing page with photos and details"
+                  : "e.g., Focus on real estate listings with property details"
+                } />
               </div>
 
               <div className="space-y-2">
@@ -705,7 +773,8 @@ Return ONLY the complete HTML code starting with <!DOCTYPE html>. No explanation
 
               <DialogFooter>
                 <Button onClick={handleAiGenerate} disabled={aiGenerating}>
-                  <Sparkles className="h-4 w-4 mr-1" /> Generate HTML
+                  <Sparkles className="h-4 w-4 mr-1" />
+                  {aiMode === "html" ? "Generate HTML" : aiMode === "enhance_prompt" ? "Enhance Prompt" : "Generate Default Prompt"}
                 </Button>
               </DialogFooter>
             </div>

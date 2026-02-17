@@ -93,17 +93,35 @@ export default function PagesTab({ projectId }: PagesTabProps) {
     }
   };
 
+  // Updated filter logic: supports comma-separated values and matchScope
   const applyFilters = (rows: any[], filterRules: any[]): any[] => {
     if (!filterRules || filterRules.length === 0) return rows;
     return rows.filter(row => {
       return filterRules.every((f: any) => {
-        const val = String(row[f.variable] ?? "").toLowerCase();
-        const target = String(f.value ?? "").toLowerCase();
-        switch (f.operator) {
-          case "contains": return val.includes(target);
-          case "equals": return val === target;
-          case "not_contains": return !val.includes(target);
-          default: return true;
+        const filterValues = String(f.value ?? "").split(",").map((v: string) => v.trim().toLowerCase()).filter(Boolean);
+        if (filterValues.length === 0) return true;
+        
+        const matchScope = f.matchScope || "specific";
+        
+        const checkValue = (cellValue: string): boolean => {
+          const val = cellValue.toLowerCase();
+          switch (f.operator) {
+            case "contains": return filterValues.some(fv => val.includes(fv));
+            case "equals": return filterValues.some(fv => val === fv);
+            case "not_contains": return filterValues.every(fv => !val.includes(fv));
+            default: return true;
+          }
+        };
+        
+        if (matchScope === "any") {
+          // Match if ANY variable/column contains the value
+          return Object.values(row).some(v => checkValue(String(v ?? "")));
+        } else if (matchScope === "all") {
+          // Match if ALL variables/columns contain the value
+          return Object.values(row).every(v => checkValue(String(v ?? "")));
+        } else {
+          // specific: match only the specified variable
+          return checkValue(String(row[f.variable] ?? ""));
         }
       });
     });
@@ -135,7 +153,6 @@ export default function PagesTab({ projectId }: PagesTabProps) {
       if (!Array.isArray(comboCols) || comboCols.length < 2) return rows;
       const [colA, colB] = comboCols;
       
-      // Collect unique values (splitting commas)
       const valuesA = new Set<string>();
       const valuesB = new Set<string>();
       for (const row of rows) {
@@ -145,7 +162,6 @@ export default function PagesTab({ projectId }: PagesTabProps) {
         bVals.forEach((v: string) => valuesB.add(v));
       }
       
-      // Generate cartesian product using first row as base
       const baseRow = rows[0] || {};
       const expanded: any[] = [];
       for (const a of valuesA) {
@@ -170,11 +186,8 @@ export default function PagesTab({ projectId }: PagesTabProps) {
       }
       if (allRows.length === 0) throw new Error("No data available. Add a data source first.");
 
-      // Apply filter rules
       const filterRules = (template as any).filter_rules;
       allRows = applyFilters(allRows, filterRules);
-
-      // Apply expansion (split/combo)
       allRows = expandRows(allRows, template);
 
       if (allRows.length === 0) throw new Error("No rows match the filter rules.");
@@ -242,6 +255,11 @@ export default function PagesTab({ projectId }: PagesTabProps) {
             if (footerHtml) html = html.replace("</body>", `${footerHtml}\n</body>`);
           }
 
+          // Store which filter was used for sitemap grouping
+          const filterTag = filterRules && filterRules.length > 0
+            ? filterRules.map((f: any) => `${f.variable}:${f.value}`).join("|")
+            : null;
+
           return {
             project_id: projectId,
             template_id: templateId,
@@ -249,7 +267,7 @@ export default function PagesTab({ projectId }: PagesTabProps) {
             slug,
             url_path: urlPath,
             status: "draft" as const,
-            data: row as unknown as Json,
+            data: { ...row, _filter_tag: filterTag } as unknown as Json,
             meta_title: metaTitle || String(title),
             meta_description: metaDesc,
             generated_html: html,
@@ -347,7 +365,6 @@ export default function PagesTab({ projectId }: PagesTabProps) {
     }
   };
 
-  // Get unique template names for filter
   const templateNames = new Map<string, string>();
   for (const p of pages) {
     if (p.template_id) {
@@ -363,7 +380,6 @@ export default function PagesTab({ projectId }: PagesTabProps) {
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
       const d = p.data as any;
-      // Search across title, slug, url_path, meta fields, and all data fields
       if (p.title.toLowerCase().includes(q)) return true;
       if (p.slug.toLowerCase().includes(q)) return true;
       if (p.url_path?.toLowerCase().includes(q)) return true;

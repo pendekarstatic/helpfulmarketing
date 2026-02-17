@@ -159,16 +159,6 @@ export default function ProjectSettingsTab({ project }: ProjectSettingsTabProps)
               </Select>
             </div>
           </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>Generated Site Theme</Label>
-              <p className="text-xs text-muted-foreground">Choose dark or light theme for the website pages you generate and export</p>
-            </div>
-            <Switch
-              checked={form.theme === "dark"}
-              onCheckedChange={(checked) => setForm({ ...form, theme: checked ? "dark" : "light" })}
-            />
-          </div>
         </CardContent>
       </Card>
 
