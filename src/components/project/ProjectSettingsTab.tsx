@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Globe, Palette, Code, Bot, Shield, Sun, Moon } from "lucide-react";
+import { Save, Globe, Palette, Code, Bot, Shield } from "lucide-react";
 
 interface ProjectSettingsTabProps {
   project: any;
@@ -43,6 +43,7 @@ export default function ProjectSettingsTab({ project }: ProjectSettingsTabProps)
     robots_txt: project.robots_txt || "",
     use_header_footer: project.use_header_footer ?? false,
     logo_url: project.logo_url || "",
+    split_assets: project.split_assets ?? true,
   });
 
   const save = useMutation({
@@ -122,32 +123,11 @@ export default function ProjectSettingsTab({ project }: ProjectSettingsTabProps)
         </CardContent>
       </Card>
 
-      {/* Theme */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            {form.theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-            Appearance
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>Dark Mode</Label>
-              <p className="text-xs text-muted-foreground">Toggle between light and dark theme for your generated site</p>
-            </div>
-            <Switch
-              checked={form.theme === "dark"}
-              onCheckedChange={(checked) => setForm({ ...form, theme: checked ? "dark" : "light" })}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Branding */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2"><Palette className="h-4 w-4" /> Branding</CardTitle>
+          <CardDescription>Colors and fonts for your generated website</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-3 gap-4">
@@ -178,6 +158,16 @@ export default function ProjectSettingsTab({ project }: ProjectSettingsTabProps)
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Generated Site Theme</Label>
+              <p className="text-xs text-muted-foreground">Choose dark or light theme for the website pages you generate and export</p>
+            </div>
+            <Switch
+              checked={form.theme === "dark"}
+              onCheckedChange={(checked) => setForm({ ...form, theme: checked ? "dark" : "light" })}
+            />
           </div>
         </CardContent>
       </Card>
@@ -340,6 +330,26 @@ export default function ProjectSettingsTab({ project }: ProjectSettingsTabProps)
         </CardContent>
       </Card>
 
+      {/* Export Options */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2"><Code className="h-4 w-4" /> Export Options</CardTitle>
+          <CardDescription>Configure how exported files are structured</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Split CSS & JavaScript</Label>
+              <p className="text-xs text-muted-foreground">When enabled, CSS and JS are extracted into shared files instead of being inline in each page HTML</p>
+            </div>
+            <Switch
+              checked={form.split_assets}
+              onCheckedChange={(checked) => setForm({ ...form, split_assets: checked })}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Advanced */}
       <Card>
         <CardHeader>
@@ -365,29 +375,6 @@ export default function ProjectSettingsTab({ project }: ProjectSettingsTabProps)
               rows={3}
               className="font-mono text-sm"
               placeholder={"User-agent: *\nAllow: /\nSitemap: https://example.com/sitemap.xml"}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Export Options */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2"><Code className="h-4 w-4" /> Export Options</CardTitle>
-          <CardDescription>Configure how exported files are structured</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>Split CSS & JavaScript</Label>
-              <p className="text-xs text-muted-foreground">When enabled, CSS and JS are extracted into shared files instead of being inline in each page HTML</p>
-            </div>
-            <Switch
-              checked={form.theme === "split_assets" ? true : false}
-              onCheckedChange={() => {
-                // This is a UI hint; actual split is done during export
-                toast({ title: "Asset splitting is applied during export", description: "CSS and JS will be extracted into shared files when you export." });
-              }}
             />
           </div>
         </CardContent>

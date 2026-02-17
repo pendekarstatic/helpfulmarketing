@@ -185,6 +185,7 @@ export type Database = {
           sitemap_max_urls: number | null
           sitemap_separate: boolean | null
           slug: string | null
+          split_assets: boolean | null
           straico_api_key: string | null
           theme: string | null
           updated_at: string
@@ -216,6 +217,7 @@ export type Database = {
           sitemap_max_urls?: number | null
           sitemap_separate?: boolean | null
           slug?: string | null
+          split_assets?: boolean | null
           straico_api_key?: string | null
           theme?: string | null
           updated_at?: string
@@ -247,6 +249,7 @@ export type Database = {
           sitemap_max_urls?: number | null
           sitemap_separate?: boolean | null
           slug?: string | null
+          split_assets?: boolean | null
           straico_api_key?: string | null
           theme?: string | null
           updated_at?: string
