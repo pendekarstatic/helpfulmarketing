@@ -391,26 +391,65 @@ export default function CustomPagesTab({ projectId }: CustomPagesTabProps) {
       {/* Existing custom pages */}
       {customPages.length > 0 && (
         <>
-          {!hasHomepage && (
-            <Card className="border-warning/30 bg-warning/5">
-              <CardContent className="py-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Home className="h-4 w-4 text-warning" />
-                  <span className="text-sm">No homepage yet — create one to serve as your index page.</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const t = STARTER_TEMPLATES.homepage;
-                    createPage.mutate({ title: t.title, slug: t.slug, url_path: t.urlPath, html_content: t.html, is_homepage: t.isHomepage });
-                  }}
-                >
-                  <Home className="h-3 w-3 mr-1" /> Add Homepage
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+          {/* Orphan Page Detection */}
+          {(() => {
+            const existingSlugs = new Set(customPages.map(p => p.slug));
+            const missingPages = ESSENTIAL_PAGES.filter(ep => !existingSlugs.has(ep.slug));
+            if (missingPages.length === 0) return null;
+            return (
+              <Card className="border-destructive/30 bg-destructive/5">
+                <CardContent className="py-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-destructive" />
+                    <span className="font-semibold text-sm">Orphan Page Warning — {missingPages.length} essential page(s) missing</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Every site should have these pages to avoid orphan pages and ensure proper SEO structure.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {missingPages.map(ep => {
+                      const template = Object.values(STARTER_TEMPLATES).find(t => t.slug === ep.slug);
+                      return (
+                        <Button
+                          key={ep.slug}
+                          variant="outline"
+                          size="sm"
+                          className="border-destructive/30 text-destructive hover:bg-destructive/10"
+                          onClick={() => {
+                            if (template) {
+                              createPage.mutate({ title: template.title, slug: template.slug, url_path: template.urlPath, html_content: template.html, is_homepage: template.isHomepage });
+                            } else {
+                              const defaultHtml = DEFAULT_PAGE_HTML[ep.slug] || `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${ep.title}</title></head><body><h1>${ep.title}</h1><p>Content coming soon.</p></body></html>`;
+                              createPage.mutate({ title: ep.title, slug: ep.slug, url_path: ep.urlPath, html_content: defaultHtml, is_homepage: ep.isHomepage || false });
+                            }
+                          }}
+                        >
+                          <Plus className="h-3 w-3 mr-1" /> {ep.title}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      missingPages.forEach(ep => {
+                        const template = Object.values(STARTER_TEMPLATES).find(t => t.slug === ep.slug);
+                        if (template) {
+                          createPage.mutate({ title: template.title, slug: template.slug, url_path: template.urlPath, html_content: template.html, is_homepage: template.isHomepage });
+                        } else {
+                          const defaultHtml = DEFAULT_PAGE_HTML[ep.slug] || `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${ep.title}</title></head><body><h1>${ep.title}</h1></body></html>`;
+                          createPage.mutate({ title: ep.title, slug: ep.slug, url_path: ep.urlPath, html_content: defaultHtml, is_homepage: ep.isHomepage || false });
+                        }
+                      });
+                    }}
+                  >
+                    <Sparkles className="h-3 w-3 mr-1" /> Create All Missing Pages
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {customPages.map((page) => (

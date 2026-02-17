@@ -18,9 +18,22 @@ export default function Index() {
             <Button variant="ghost" size="sm" onClick={() => navigate("/guide")}>
               Docs
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/tools/spintax")}>
-              Tools
-            </Button>
+            <div className="relative group">
+              <Button variant="ghost" size="sm">
+                Tools ▾
+              </Button>
+              <div className="absolute right-0 top-full mt-1 w-56 bg-card border border-border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                <div className="p-2 space-y-1">
+                  <button
+                    onClick={() => navigate("/tools/spintax")}
+                    className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors"
+                  >
+                    <span className="font-medium">Spintax Testing</span>
+                    <p className="text-xs text-muted-foreground mt-0.5">Test & preview nested spintax patterns</p>
+                  </button>
+                </div>
+              </div>
+            </div>
             <Button size="sm" onClick={() => navigate(user ? "/dashboard" : "/auth")}>
               {user ? "Open App" : "Get Started"}
             </Button>
