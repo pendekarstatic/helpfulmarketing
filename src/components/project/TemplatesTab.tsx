@@ -5,13 +5,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileCode, Trash2, Edit, Copy, BookTemplate, Sparkles, Wand2, Eye } from "lucide-react";
+import { Plus, FileCode, Trash2, Edit, Copy, BookTemplate, Sparkles } from "lucide-react";
 import TemplateEditor from "./TemplateEditor";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -320,13 +320,6 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
   const [createOpen, setCreateOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [aiBrandGuidelines, setAiBrandGuidelines] = useState("");
-  const [aiPreviewHtml, setAiPreviewHtml] = useState<string | null>(null);
-  const [aiGenerating, setAiGenerating] = useState(false);
-  const [aiTemplateName, setAiTemplateName] = useState("AI Generated Template");
-  const [aiTemplateType, setAiTemplateType] = useState<TemplateType>("custom");
 
   const { data: templates = [] } = useQuery({
     queryKey: ["templates", projectId],
@@ -354,18 +347,6 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
     },
   });
 
-  const { data: project } = useQuery({
-    queryKey: ["project", projectId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("brand_guidelines, openrouter_api_key, straico_api_key, ai_model")
-        .eq("id", projectId)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-  });
 
   // Calculate total available rows for page generation
   const totalDataRows = dataSources.reduce((sum, ds) => {
@@ -403,8 +384,6 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
       queryClient.invalidateQueries({ queryKey: ["templates", projectId] });
       setCreateOpen(false);
       setLibraryOpen(false);
-      setAiOpen(false);
-      setAiPreviewHtml(null);
       toast({ title: "Template created!" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
@@ -452,101 +431,6 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
     });
   };
 
-  const handleAiGenerate = async () => {
-    if (!aiPrompt.trim()) {
-      toast({ title: "Please describe the website you want to generate", variant: "destructive" });
-      return;
-    }
-
-    const apiKey = project?.openrouter_api_key || project?.straico_api_key;
-    if (!apiKey) {
-      toast({ title: "No AI API key configured", description: "Go to Project Settings → AI Web Creation to add your OpenRouter or Straico API key.", variant: "destructive" });
-      return;
-    }
-
-    setAiGenerating(true);
-    try {
-      const variablesList = allVariables.map(v => `{{${v}}}`).join(", ");
-      const guidelines = aiBrandGuidelines || project?.brand_guidelines || "";
-      
-      const systemPrompt = `You are an expert web designer. Generate a complete, beautiful, responsive HTML page template.
-The template must use these template variables for dynamic content: ${variablesList}
-Variables are injected as {{variable_name}} in the HTML.
-${guidelines ? `\nBrand Guidelines:\n${guidelines}` : ""}
-Return ONLY the complete HTML code, starting with <!DOCTYPE html>. Include all CSS inline in a <style> tag.
-Make the design modern, clean, and professional. Use semantic HTML.`;
-
-      const isOpenRouter = !!project?.openrouter_api_key;
-      const model = project?.ai_model || (isOpenRouter ? "openai/gpt-4o" : "");
-      
-      let response;
-      if (isOpenRouter) {
-        response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: aiPrompt },
-            ],
-          }),
-        });
-      } else {
-        response = await fetch("https://api.straico.com/v1/prompt/completion", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: model || "openai/gpt-4o",
-            message: `${systemPrompt}\n\nUser request: ${aiPrompt}`,
-          }),
-        });
-      }
-
-      if (!response.ok) throw new Error(`AI API error: ${response.status}`);
-      
-      const data = await response.json();
-      let htmlContent = "";
-      
-      if (isOpenRouter) {
-        htmlContent = data.choices?.[0]?.message?.content || "";
-      } else {
-        htmlContent = data.data?.completion?.choices?.[0]?.message?.content || data.completion || "";
-      }
-
-      // Extract HTML from markdown code blocks if present
-      const codeBlockMatch = htmlContent.match(/```html?\s*([\s\S]*?)```/);
-      if (codeBlockMatch) {
-        htmlContent = codeBlockMatch[1].trim();
-      }
-
-      if (!htmlContent.includes("<!DOCTYPE") && !htmlContent.includes("<html")) {
-        throw new Error("AI did not return valid HTML. Please try again.");
-      }
-
-      setAiPreviewHtml(htmlContent);
-      toast({ title: "AI template generated! Review the preview below." });
-    } catch (err: any) {
-      toast({ title: "AI generation failed", description: err.message, variant: "destructive" });
-    } finally {
-      setAiGenerating(false);
-    }
-  };
-
-  const handleApproveAiTemplate = () => {
-    if (!aiPreviewHtml) return;
-    createTemplate.mutate({
-      name: aiTemplateName,
-      template_type: aiTemplateType,
-      html: aiPreviewHtml,
-    });
-  };
 
   const editingTemplate = editingId ? templates.find((t) => t.id === editingId) : null;
 
@@ -570,9 +454,6 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => { setAiOpen(true); setAiPreviewHtml(null); setAiBrandGuidelines(project?.brand_guidelines || ""); }}>
-            <Wand2 className="h-4 w-4 mr-1" /> AI Generate
-          </Button>
           <Button variant="outline" size="sm" onClick={() => setLibraryOpen(true)}>
             <BookTemplate className="h-4 w-4 mr-1" /> Library
           </Button>
@@ -630,89 +511,6 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
         </Card>
       )}
 
-      {/* AI Generate Dialog */}
-      <Dialog open={aiOpen} onOpenChange={setAiOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Wand2 className="h-5 w-5 text-primary" /> AI Website Generator</DialogTitle>
-          </DialogHeader>
-          
-          {!aiPreviewHtml ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Template Name</Label>
-                  <Input value={aiTemplateName} onChange={(e) => setAiTemplateName(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Template Type</Label>
-                  <Select value={aiTemplateType} onValueChange={(v) => setAiTemplateType(v as TemplateType)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(TEMPLATE_LABELS).map(([k, v]) => (
-                        <SelectItem key={k} value={k}>{v}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Describe the website you want</Label>
-                <Textarea
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  rows={4}
-                  placeholder="e.g., A modern business directory page with a hero image, rating stars, contact info section, and a clean card layout. Use blue and white color scheme."
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Brand Guidelines (optional)</Label>
-                <Textarea
-                  value={aiBrandGuidelines}
-                  onChange={(e) => setAiBrandGuidelines(e.target.value)}
-                  rows={3}
-                  placeholder="Brand voice, colors, fonts, tone, target audience..."
-                />
-              </div>
-
-              {allVariables.length > 0 && (
-                <div className="space-y-1">
-                  <Label className="text-xs">Available variables (AI will use these):</Label>
-                  <div className="max-h-[5rem] overflow-auto">
-                    <div className="flex flex-wrap gap-1">
-                      {allVariables.map((v) => (
-                        <code key={v} className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">{`{{${v}}}`}</code>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <DialogFooter>
-                <Button onClick={handleAiGenerate} disabled={aiGenerating}>
-                  <Sparkles className="h-4 w-4 mr-1" /> {aiGenerating ? "Generating..." : "Generate HTML"}
-                </Button>
-              </DialogFooter>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="border rounded-lg overflow-hidden" style={{ height: "60vh" }}>
-                <iframe title="AI Preview" srcDoc={aiPreviewHtml} className="w-full h-full" sandbox="allow-same-origin" />
-              </div>
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setAiPreviewHtml(null)}>
-                  ← Regenerate
-                </Button>
-                <Button onClick={handleApproveAiTemplate} disabled={createTemplate.isPending}>
-                  <Sparkles className="h-4 w-4 mr-1" /> Approve & Save Template
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Template Library Dialog */}
       <Dialog open={libraryOpen} onOpenChange={setLibraryOpen}>
@@ -743,11 +541,8 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <FileCode className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-1">No templates yet</h3>
-            <p className="text-muted-foreground mb-4">Use the Library for pre-built templates, AI Generate, or create a custom one.</p>
+            <p className="text-muted-foreground mb-4">Use the Library for pre-built templates or create a custom one. AI Generate is available inside the template editor.</p>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => { setAiOpen(true); setAiPreviewHtml(null); }}>
-                <Wand2 className="h-4 w-4 mr-1" /> AI Generate
-              </Button>
               <Button variant="outline" onClick={() => setLibraryOpen(true)}>
                 <BookTemplate className="h-4 w-4 mr-1" /> Browse Library
               </Button>
