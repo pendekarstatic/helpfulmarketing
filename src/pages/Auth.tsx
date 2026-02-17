@@ -105,7 +105,7 @@ export default function Auth() {
         <div className="max-w-md mx-auto space-y-8 animate-fade-in">
           <div>
             <h1 className="text-4xl font-bold tracking-tight text-foreground">
-              PageForge
+              Helpful Marketing Website
             </h1>
             <p className="mt-2 text-lg text-muted-foreground">
               Build SEO-optimized directories & programmatic pages from Google Sheets.
@@ -123,7 +123,7 @@ export default function Auth() {
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-md animate-fade-in">
           <div className="lg:hidden mb-8 text-center">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">PageForge</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">HMW</h1>
             <p className="mt-1 text-muted-foreground">pSEO & Directory Generator</p>
           </div>
 
@@ -167,7 +167,7 @@ export default function Auth() {
                 <form onSubmit={handleSignUp}>
                   <CardHeader>
                     <CardTitle>Create account</CardTitle>
-                    <CardDescription>Get started with PageForge</CardDescription>
+                    <CardDescription>Get started with Helpful Marketing Website</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">

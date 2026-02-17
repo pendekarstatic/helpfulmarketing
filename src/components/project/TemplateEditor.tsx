@@ -275,7 +275,7 @@ Make the design modern, clean, and professional. Use semantic HTML.`;
           "Authorization": `Bearer ${key}`,
           "Content-Type": "application/json",
           "HTTP-Referer": window.location.origin,
-          "X-Title": "PageForge",
+          "X-Title": "Helpful Marketing Website",
         },
         body: JSON.stringify({
           model,
