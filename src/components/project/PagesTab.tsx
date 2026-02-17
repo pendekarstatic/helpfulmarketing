@@ -255,6 +255,28 @@ export default function PagesTab({ projectId }: PagesTabProps) {
             if (footerHtml) html = html.replace("</body>", `${footerHtml}\n</body>`);
           }
 
+          // Inject ALL_LISTINGS data for recommendations/SRP dynamic rendering
+          const listingsJson = JSON.stringify(allRows.map(r => ({
+            hotel_name: r.hotel_name || r.title || '',
+            slug: (r.slug || '').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+            city: r.city || '',
+            country: r.country || '',
+            district: r.district || '',
+            category: r.category || '',
+            brand_name: r.brand_name || '',
+            property_type: r.property_type || '',
+            stars: r.stars || '',
+            rating: r.rating || '',
+            number_of_reviews: r.number_of_reviews || '',
+            price_per_night: r.price_per_night || '',
+            photo_url: r.photo_url || '',
+            amenities: r.amenities || '',
+            bedrooms: r.bedrooms || '',
+            description: (r.description || '').substring(0, 150),
+          })));
+          const listingsScript = `<script>window.__ALL_LISTINGS__=${listingsJson};</script>`;
+          html = html.replace("</head>", `${listingsScript}\n</head>`);
+
           // Store which filter was used for sitemap grouping
           const filterTag = filterRules && filterRules.length > 0
             ? filterRules.map((f: any) => `${f.variable}:${f.value}`).join("|")
@@ -441,9 +463,23 @@ export default function PagesTab({ projectId }: PagesTabProps) {
           )}
           {templates.length > 0 && (
             <>
+              <Button variant="default" size="sm" disabled={generating} onClick={async () => {
+                for (const t of templates) {
+                  try { await generatePages.mutateAsync({ templateId: t.id }); } catch {}
+                }
+              }}>
+                <Wand2 className="h-4 w-4 mr-1" /> {generating ? "Generating..." : "Bulk Generate All"}
+              </Button>
+              <Button variant="outline" size="sm" disabled={generating} onClick={async () => {
+                for (const t of templates) {
+                  try { await generatePages.mutateAsync({ templateId: t.id, regenerate: true }); } catch {}
+                }
+              }}>
+                <RefreshCw className="h-4 w-4 mr-1" /> Bulk Regenerate All
+              </Button>
               <Select onValueChange={(v) => generatePages.mutate({ templateId: v })}>
                 <SelectTrigger className="w-auto h-9">
-                  <span className="text-sm flex items-center gap-1"><Wand2 className="h-3 w-3" /> {generating ? "Generating..." : "Generate"}</span>
+                  <span className="text-sm flex items-center gap-1"><Wand2 className="h-3 w-3" /> Generate</span>
                 </SelectTrigger>
                 <SelectContent>
                   {templates.map((t) => (
