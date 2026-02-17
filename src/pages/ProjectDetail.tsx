@@ -5,9 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Database, FileCode, FileText, Search, Download, Settings } from "lucide-react";
+import { ArrowLeft, Database, FileCode, FileText, Search, Download, Settings, Home } from "lucide-react";
 import DataSourcesTab from "@/components/project/DataSourcesTab";
 import TemplatesTab from "@/components/project/TemplatesTab";
+import CustomPagesTab from "@/components/project/CustomPagesTab";
 import PagesTab from "@/components/project/PagesTab";
 import SeoTab from "@/components/project/SeoTab";
 import ExportTab from "@/components/project/ExportTab";
@@ -75,6 +76,9 @@ export default function ProjectDetail() {
             <TabsTrigger value="templates" className="gap-1.5">
               <FileCode className="h-4 w-4" /> Templates
             </TabsTrigger>
+            <TabsTrigger value="custom-pages" className="gap-1.5">
+              <Home className="h-4 w-4" /> Custom Pages
+            </TabsTrigger>
             <TabsTrigger value="pages" className="gap-1.5">
               <FileText className="h-4 w-4" /> Pages
             </TabsTrigger>
@@ -94,6 +98,9 @@ export default function ProjectDetail() {
           </TabsContent>
           <TabsContent value="templates">
             <TemplatesTab projectId={project.id} projectMode={project.mode} />
+          </TabsContent>
+          <TabsContent value="custom-pages">
+            <CustomPagesTab projectId={project.id} />
           </TabsContent>
           <TabsContent value="pages">
             <PagesTab projectId={project.id} />

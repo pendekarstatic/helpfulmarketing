@@ -283,6 +283,214 @@ const BUILTIN_TEMPLATES: Record<string, { name: string; type: TemplateType; html
 </body>
 </html>`,
   },
+  hotel_ldp: {
+    name: "Hotel LDP (Detail Page)",
+    type: "listing_detail",
+    schemaType: "Hotel",
+    urlPattern: "/hotel/{{slug}}",
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{mpg_hotel_name}} — Hotels Directory</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:system-ui,sans-serif;background:#f4f4f4;color:#1e293b}
+    .header{background:#1e293b;color:white;padding:1rem 2rem}
+    .header a{color:white;text-decoration:none;opacity:0.7}
+    .container{max-width:1200px;margin:0 auto;padding:2rem}
+    .hero-img{width:100%;max-width:900px;height:auto;border-radius:15px;box-shadow:0 4px 8px rgba(0,0,0,0.1);display:block;margin:0 auto 2rem}
+    h1{font-size:2.5rem;font-weight:bold;text-align:center;margin-bottom:0.5rem}
+    .location{text-align:center;color:#777;font-size:1.25rem;margin-bottom:2rem}
+    .rating-box{display:flex;justify-content:center;align-items:center;gap:1rem;margin-bottom:2rem}
+    .rating-big{font-size:3rem;font-weight:600;color:#303a9e}
+    .rating-sub{font-size:1rem;color:#888}
+    .details-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:2rem;margin-bottom:3rem;text-align:center}
+    .detail-item h3{font-size:1.1rem;font-weight:600;color:#555;margin-bottom:0.25rem}
+    .detail-item p{font-size:1rem;color:#444}
+    .section{max-width:900px;margin:0 auto 2.5rem}
+    .section h3{font-size:1.25rem;font-weight:600;color:#303a9e;margin-bottom:0.75rem}
+    .section p{font-size:1rem;color:#555;line-height:1.8}
+    .cta{display:inline-block;background:#303a9e;color:white;padding:0.875rem 2rem;border-radius:50px;text-decoration:none;font-weight:600;font-size:1.1rem}
+    .cta:hover{opacity:0.9}
+    .related{background:#e9f1f7;border-radius:15px;padding:3rem 2rem;margin:2rem 0}
+    .related h2{font-size:1.75rem;text-align:center;color:#303a9e;margin-bottom:0.5rem}
+    .related .subtitle{text-align:center;color:#555;margin-bottom:2rem}
+    .related-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.5rem}
+    .related-card{background:white;border-radius:10px;padding:1.25rem;box-shadow:0 4px 12px rgba(0,0,0,0.05);text-align:center}
+    .related-card img{width:100%;height:200px;object-fit:cover;border-radius:10px;margin-bottom:0.75rem}
+    .related-card h3{font-size:1.1rem;font-weight:bold;margin-bottom:0.25rem}
+    .related-card .meta{color:#777;font-size:0.875rem;margin-bottom:0.5rem}
+    .related-card .price{color:#303a9e;font-size:1.1rem;font-weight:600}
+    .footer{text-align:center;padding:2rem;color:#94a3b8;font-size:0.8rem;border-top:1px solid #e2e8f0}
+  </style>
+</head>
+<body>
+  <div class="header"><a href="/">← Home</a> &nbsp; <strong>Hotels</strong></div>
+  <div class="container">
+    <h1>{{mpg_hotel_name}}</h1>
+    <p class="location">{{mpg_address}}, {{mpg_country}}</p>
+    <img class="hero-img" src="{{mpg_photo_url}}" alt="{{mpg_hotel_name}}" onerror="this.src='https://images.unsplash.com/photo-1566073771259-6a8506099945?w=900'" />
+    <div class="rating-box">
+      <span class="rating-big">{{mpg_rating}} / 5</span>
+      <span class="rating-sub">based on {{mpg_number_of_reviews}} reviews</span>
+    </div>
+    <div class="details-grid">
+      <div class="detail-item"><h3>💰 Price per Night</h3><p>\${{mpg_price_per_night_usd}} USD</p></div>
+      <div class="detail-item"><h3>⭐ Hotel Stars</h3><p>{{mpg_stars}} Stars</p></div>
+      <div class="detail-item"><h3>📏 Distance</h3><p>{{mpg_distance_from_closest_hotel_km}} km</p></div>
+      <div class="detail-item"><h3>📅 Built Date</h3><p>{{mpg_built_date}}</p></div>
+      <div class="detail-item"><h3>🗣️ Languages</h3><p>{{mpg_languages_spoken}}</p></div>
+      <div class="detail-item"><h3>🛎️ Services</h3><p>{{mpg_hotel_services}}</p></div>
+    </div>
+    <div class="section">
+      <h3>🏊 Property Amenities</h3>
+      <p>{{mpg_amenities}}</p>
+    </div>
+    <div class="section">
+      <h3>ℹ️ About</h3>
+      <p>{{mpg_description}}</p>
+    </div>
+    <div style="text-align:center;margin-bottom:3rem">
+      <a class="cta" href="{{mpg_url}}">Visit Hotel Website</a>
+    </div>
+    <div class="related">
+      <h2>Hotels with {{mpg_stars}} Stars</h2>
+      <p class="subtitle">Explore other hotels with the same star rating.</p>
+      <div class="related-grid">
+        <!-- Related hotels would be injected here in a full implementation -->
+      </div>
+    </div>
+  </div>
+  <div class="footer">© Hotels Directory</div>
+</body>
+</html>`,
+  },
+  hotel_srp: {
+    name: "Hotel SRP (Search Results)",
+    type: "search_results",
+    schemaType: "CollectionPage",
+    urlPattern: "/hotels/{{slug}}",
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{title}} — Hotels</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:system-ui,sans-serif;background:#f8fafc;color:#1e293b}
+    .header{background:#1e293b;color:white;padding:1.5rem 2rem}
+    .header a{color:white;text-decoration:none;opacity:0.7}
+    .container{max-width:1000px;margin:0 auto;padding:2rem}
+    .hero{background:linear-gradient(135deg,#303a9e,#5b4fe0);color:white;padding:3rem 2rem;text-align:center;border-radius:15px;margin-bottom:2rem}
+    .hero h1{font-size:2.25rem;margin-bottom:0.5rem}
+    .hero p{opacity:0.9;font-size:1.1rem}
+    .stats{display:flex;justify-content:center;gap:2rem;margin-bottom:2rem}
+    .stat{text-align:center}
+    .stat .num{font-size:1.75rem;font-weight:700;color:#303a9e}
+    .stat .label{font-size:0.8rem;color:#64748b}
+    .listing{display:flex;gap:1.5rem;padding:1.5rem;background:white;border-radius:12px;margin-bottom:1rem;border:1px solid #e2e8f0;transition:box-shadow 0.2s}
+    .listing:hover{box-shadow:0 4px 16px rgba(0,0,0,0.08)}
+    .listing img{width:200px;height:150px;object-fit:cover;border-radius:8px;flex-shrink:0}
+    .listing h3{font-size:1.1rem;margin-bottom:0.25rem}
+    .listing .meta{color:#64748b;font-size:0.85rem;margin-bottom:0.5rem}
+    .listing .price{color:#303a9e;font-weight:700;font-size:1.1rem}
+    .listing .rating{color:#f59e0b}
+    .listing .btn{display:inline-block;margin-top:0.75rem;background:#303a9e;color:white;padding:0.5rem 1.25rem;border-radius:6px;text-decoration:none;font-size:0.85rem}
+    .footer{text-align:center;padding:2rem;color:#94a3b8;font-size:0.8rem}
+    @media(max-width:640px){.listing{flex-direction:column}.listing img{width:100%;height:200px}}
+  </style>
+</head>
+<body>
+  <div class="header"><a href="/">← Home</a> &nbsp; <strong>Hotels</strong></div>
+  <div class="container">
+    <div class="hero">
+      <h1>{{title}}</h1>
+      <p>{{description}}</p>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="num">{{category}}</div><div class="label">Category</div></div>
+      <div class="stat"><div class="num">{{location}}</div><div class="label">Location</div></div>
+    </div>
+    <div class="listing">
+      <img src="{{image}}" alt="{{title}}" onerror="this.src='https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400'" />
+      <div>
+        <h3>{{title}}</h3>
+        <div class="meta">📍 {{location}} · <span class="rating">⭐ {{rating}}</span></div>
+        <div class="price">{{price}}</div>
+        <p style="font-size:0.9rem;color:#475569;margin-top:0.5rem;line-height:1.6">{{description}}</p>
+        <a class="btn" href="{{url}}">View Details →</a>
+      </div>
+    </div>
+  </div>
+  <div class="footer">© Hotels Directory</div>
+</body>
+</html>`,
+  },
+  category_srp: {
+    name: "Category SRP (Directory)",
+    type: "category_page",
+    schemaType: "CollectionPage",
+    urlPattern: "/category/{{slug}}",
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{title}} — Directory</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:system-ui,sans-serif;background:#f1f5f9;color:#0f172a}
+    .header{background:#0f172a;color:white;padding:1.5rem 2rem;display:flex;align-items:center;gap:1rem}
+    .header a{color:white;text-decoration:none;opacity:0.7}
+    .hero{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);color:white;padding:4rem 2rem;text-align:center}
+    .hero h1{font-size:2.5rem;margin-bottom:0.5rem}
+    .hero p{opacity:0.85;font-size:1.15rem;max-width:600px;margin:0 auto}
+    .breadcrumb{padding:1rem 2rem;font-size:0.8rem;color:#64748b;max-width:1200px;margin:0 auto}
+    .breadcrumb a{color:#303a9e;text-decoration:none}
+    .container{max-width:1200px;margin:0 auto;padding:0 2rem 3rem}
+    .filter-bar{display:flex;gap:1rem;margin-bottom:2rem;flex-wrap:wrap}
+    .filter-bar span{background:white;border:1px solid #e2e8f0;padding:0.5rem 1rem;border-radius:20px;font-size:0.8rem;cursor:pointer}
+    .filter-bar span:hover{background:#e2e8f0}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.5rem}
+    .card{background:white;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;transition:transform 0.2s,box-shadow 0.2s}
+    .card:hover{transform:translateY(-3px);box-shadow:0 8px 25px rgba(0,0,0,0.1)}
+    .card img{width:100%;height:200px;object-fit:cover}
+    .card-body{padding:1.25rem}
+    .card h3{font-size:1rem;margin-bottom:0.25rem}
+    .card .meta{color:#64748b;font-size:0.8rem;margin-bottom:0.5rem}
+    .card .price{color:#303a9e;font-weight:700;font-size:1rem}
+    .card .rating{color:#f59e0b;font-weight:600}
+    .card .btn{display:inline-block;margin-top:0.75rem;background:#303a9e;color:white;padding:0.4rem 1rem;border-radius:6px;text-decoration:none;font-size:0.8rem}
+    .pagination{display:flex;justify-content:center;gap:0.5rem;margin-top:2rem}
+    .pagination a{padding:0.5rem 1rem;border:1px solid #e2e8f0;border-radius:6px;text-decoration:none;color:#0f172a;font-size:0.875rem}
+    .pagination a.active{background:#303a9e;color:white;border-color:#303a9e}
+    .footer{text-align:center;padding:2rem;color:#94a3b8;font-size:0.8rem;border-top:1px solid #e2e8f0}
+  </style>
+</head>
+<body>
+  <div class="header"><a href="/">← Home</a> <strong>{{category}} — Directory</strong></div>
+  <div class="hero">
+    <h1>{{title}}</h1>
+    <p>Browse all listings in {{category}}{{location ? " in " + location : ""}}</p>
+  </div>
+  <div class="breadcrumb"><a href="/">Home</a> › <a href="/categories/">Categories</a> › {{category}}</div>
+  <div class="container">
+    <div class="grid">
+      <div class="card">
+        <img src="{{image}}" alt="{{title}}" onerror="this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=400'" />
+        <div class="card-body">
+          <h3>{{title}}</h3>
+          <div class="meta">📍 {{location}} · <span class="rating">⭐ {{rating}}</span></div>
+          <div class="price">{{price}}</div>
+          <a class="btn" href="{{url}}">View Details →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">© Directory</div>
+</body>
+</html>`,
+  },
 };
 
 const DEFAULT_HTML = `<!DOCTYPE html>
@@ -473,9 +681,9 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
   }
 
   const relevantBuiltins = Object.entries(BUILTIN_TEMPLATES).filter(([key]) => {
-    if (projectMode === "pseo") return ["best_x_in_y", "glossary", "category_hub"].includes(key);
-    if (projectMode === "directory") return ["business_directory", "saas_directory", "job_board", "category_hub"].includes(key);
-    return true;
+    if (projectMode === "pseo") return ["best_x_in_y", "glossary", "category_hub", "category_srp"].includes(key);
+    if (projectMode === "directory") return ["business_directory", "saas_directory", "job_board", "category_hub", "hotel_ldp", "hotel_srp", "category_srp"].includes(key);
+    return true; // hybrid shows all
   });
 
   const configTemplate = configTemplateId ? templates.find(t => t.id === configTemplateId) : null;

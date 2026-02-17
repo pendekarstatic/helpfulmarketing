@@ -33,6 +33,9 @@ export default function Index() {
             <Button size="lg" onClick={() => navigate(user ? "/dashboard" : "/auth")}>
               Start Building <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
+            <Button size="lg" variant="outline" onClick={() => navigate("/guide")}>
+              📖 Guide
+            </Button>
           </div>
         </div>
       </section>
