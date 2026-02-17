@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileCode, Trash2, Edit, Copy, BookTemplate, Sparkles, Filter, Combine } from "lucide-react";
+import { Plus, FileCode, Trash2, Edit, Copy, BookTemplate, Sparkles, Filter, Combine, MapPin } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import TemplateEditor from "./TemplateEditor";
 import type { Database } from "@/integrations/supabase/types";
 import { SAMPLE_HOTEL_DATA, SAMPLE_DATA_SOURCE_NAME, SAMPLE_LDP_HTML, SAMPLE_SRP_HTML, SAMPLE_CATEGORY_SRP_HTML } from "@/lib/sample-data";
@@ -305,8 +306,77 @@ const BUILTIN_TEMPLATES: Record<string, { name: string; type: TemplateType; html
     urlPattern: "/category/{{slug}}",
     html: SAMPLE_CATEGORY_SRP_HTML,
   },
+  local_seo_service: {
+    name: "Local SEO — Service Pages",
+    type: "location_page" as TemplateType,
+    schemaType: "Service",
+    urlPattern: "/services/[search_term]-in-[location]",
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>[search_term] in [location] | Professional Services</title>
+  <meta name="description" content="Find the best [search_term] in [location]. Professional, reliable, and affordable [search_terms] near you.">
+  <style>
+    :root{--c-primary:#1a365d;--c-accent:#e67e22;--c-bg:#f7f8fc;--c-card:#fff;--c-text:#2d3748;--c-light:#718096;--c-border:#e2e8f0;--radius:12px}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color:var(--c-text);line-height:1.6}
+    a{text-decoration:none;color:inherit}
+    .nav{background:var(--c-primary);padding:0 2rem;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+    .nav-brand{color:#fff;font-weight:800;font-size:1.15rem}
+    .nav-links{display:flex;gap:1.5rem}
+    .nav-links a{color:rgba(255,255,255,.8);font-size:.875rem;font-weight:500}
+    .nav-links a:hover{color:#fff}
+    .container{max-width:900px;margin:0 auto;padding:2rem 1.5rem}
+    h1{font-size:2rem;font-weight:800;color:var(--c-primary);margin-bottom:1rem}
+    h2{font-size:1.35rem;font-weight:700;color:var(--c-primary);margin:2rem 0 .75rem}
+    h3{font-size:1.1rem;font-weight:600;color:var(--c-primary);margin:1.5rem 0 .5rem}
+    p{color:#4a5568;margin-bottom:1rem;line-height:1.8}
+    ul{margin:0 0 1rem 1.5rem;color:#4a5568}
+    li{margin-bottom:.4rem}
+    .cta{display:inline-block;background:var(--c-accent);color:#fff;padding:.75rem 2rem;border-radius:8px;font-weight:700;margin-top:1rem}
+    .cta:hover{opacity:.9}
+    .breadcrumb{font-size:.8rem;color:var(--c-light);margin-bottom:1.5rem}
+    .breadcrumb a{color:var(--c-accent)}
+    .toc{background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--radius);padding:1.5rem;margin-bottom:2rem}
+    .toc h4{font-size:.9rem;font-weight:700;color:var(--c-primary);margin-bottom:.75rem}
+    .toc ol,.toc ul{margin:0 0 0 1.25rem}
+    .toc li{margin-bottom:.35rem}
+    .toc a{color:var(--c-accent);font-size:.85rem}
+    .footer{background:var(--c-primary);color:rgba(255,255,255,.7);padding:2rem;text-align:center;margin-top:3rem;font-size:.8rem}
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <a href="/" class="nav-brand">Local Services</a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/services/">Services</a>
+      <a href="/contact/">Contact</a>
+    </div>
+  </nav>
+  <div class="container">
+    <div class="breadcrumb"><a href="/">Home</a> › <a href="/services/">Services</a> › [search_term] in [location]</div>
+    <h1>Professional [search_term] in [location]</h1>
+    <h2>Why Choose Our [search_terms] in [location]?</h2>
+    <p>Our [search_terms] in [location] are highly rated and trusted by the local community. We combine expertise with personalized service.</p>
+    <ul>
+      <li>Experienced and certified professionals</li>
+      <li>Convenient [location] location</li>
+      <li>Competitive pricing</li>
+      <li>Excellent customer reviews</li>
+    </ul>
+    <h2>Our Services</h2>
+    <p>We provide a comprehensive range of [search_term] services in [location], including consultations, scheduled appointments, and emergency services.</p>
+    <h2>Book a [search_term] in [location]</h2>
+    <p>Ready to get started? Contact our [location] team today to schedule your appointment with a trusted [search_term].</p>
+    <p style="text-align:center"><a class="cta" href="#contact">Book Now</a></p>
+  </div>
+  <div class="footer">© 2025 Local Services. All rights reserved.</div>
+</body>
+</html>`,
+  },
 };
-
 const DEFAULT_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -497,6 +567,7 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
   const relevantBuiltins = Object.entries(BUILTIN_TEMPLATES).filter(([key]) => {
     if (projectMode === "pseo") return ["best_x_in_y", "glossary", "category_hub", "category_srp"].includes(key);
     if (projectMode === "directory") return ["business_directory", "saas_directory", "job_board", "category_hub", "hotel_ldp", "hotel_srp", "category_srp"].includes(key);
+    if (projectMode === "local_seo") return ["local_seo_service"].includes(key);
     return true; // hybrid shows all
   });
 
@@ -508,7 +579,10 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
         <div>
           <h3 className="text-xl font-semibold">Templates</h3>
           <p className="text-sm text-muted-foreground">
-            HTML templates with {"{{variable}}"} injection · <strong>{totalDataRows} data rows</strong> available for page generation
+            {projectMode === "local_seo"
+              ? <>Full HTML templates with <code className="text-xs bg-muted px-1 rounded">[search_term]</code>, <code className="text-xs bg-muted px-1 rounded">[search_terms]</code>, <code className="text-xs bg-muted px-1 rounded">[location]</code> placeholders · Nested spintax supported</>
+              : <>HTML templates with {"{{variable}}"} injection · <strong>{totalDataRows} data rows</strong> available for page generation</>
+            }
           </p>
         </div>
         <div className="flex gap-2">
@@ -597,7 +671,21 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
       </div>
 
       {/* Available Variables */}
-      {allVariables.length > 0 && (
+      {projectMode === "local_seo" ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Available Placeholders</CardTitle>
+            <CardDescription className="text-xs">Use these in your HTML templates. Nested spintax like {"{{option1|option2}}"} is also supported.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-1.5">
+              {["[search_term]", "[search_terms]", "[location]", "[nsg-toc]"].map((v) => (
+                <code key={v} className="text-xs bg-muted px-2 py-1 rounded font-mono">{v}</code>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : allVariables.length > 0 ? (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Available Variables ({allVariables.length})</CardTitle>
@@ -613,7 +701,7 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
             </div>
           </CardContent>
         </Card>
-      )}
+      ) : null}
 
       {/* Template Library Dialog */}
       <Dialog open={libraryOpen} onOpenChange={setLibraryOpen}>
@@ -642,6 +730,7 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
       <GenerationConfigDialog
         template={configTemplate}
         variables={allVariables}
+        projectMode={projectMode}
         open={!!configTemplateId}
         onOpenChange={(open) => { if (!open) setConfigTemplateId(null); }}
         onSave={(config) => updateTemplateConfig.mutate({ id: configTemplateId, ...config })}
@@ -737,6 +826,7 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
 function GenerationConfigDialog({
   template,
   variables,
+  projectMode,
   open,
   onOpenChange,
   onSave,
@@ -744,6 +834,7 @@ function GenerationConfigDialog({
 }: {
   template: any;
   variables: string[];
+  projectMode: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (config: any) => void;
@@ -755,7 +846,23 @@ function GenerationConfigDialog({
   const [comboCol2, setComboCol2] = useState("");
   const [filters, setFilters] = useState<FilterRule[]>([]);
 
-  // Sync state when template changes
+  // Local SEO config state
+  const [searchTerms, setSearchTerms] = useState("Plumber | Plumbers\nElectrician | Electricians\nHandyman");
+  const [locations, setLocations] = useState("New York\nLos Angeles\nChicago\nHouston\nPhoenix");
+  const [pageBase, setPageBase] = useState("services");
+  const [slugPattern, setSlugPattern] = useState("[search_term]-in-[location]");
+  const [archiveTitle, setArchiveTitle] = useState("Archive");
+  const [overviewLabel, setOverviewLabel] = useState("Overview");
+  const [enableArchive, setEnableArchive] = useState(true);
+  const [excludeArchiveIndex, setExcludeArchiveIndex] = useState(true);
+  const [enableToc, setEnableToc] = useState(true);
+  const [tocTitle, setTocTitle] = useState("Table of Contents");
+  const [tocNumbered, setTocNumbered] = useState(true);
+  const [tocToggle, setTocToggle] = useState(true);
+  const [tocIncludeH3, setTocIncludeH3] = useState(false);
+
+  const isLocalSeo = projectMode === "local_seo";
+
   useEffect(() => {
     if (template) {
       setMode((template as any).generation_mode || "normal");
@@ -769,10 +876,32 @@ function GenerationConfigDialog({
         setComboCol2("");
       }
       const fr = (template as any).filter_rules;
-      if (Array.isArray(fr)) setFilters(fr);
-      else setFilters([]);
+      if (isLocalSeo && fr && typeof fr === "object" && !Array.isArray(fr) && (fr as any)._local_seo_config) {
+        const cfg = fr as any;
+        setSearchTerms(cfg.search_terms || "");
+        setLocations(cfg.locations || "");
+        setPageBase(cfg.page_base || "services");
+        setSlugPattern(cfg.slug_pattern || "[search_term]-in-[location]");
+        setArchiveTitle(cfg.archive_title || "Archive");
+        setOverviewLabel(cfg.overview_label || "Overview");
+        setEnableArchive(cfg.enable_archive !== false);
+        setExcludeArchiveIndex(cfg.exclude_archive_index !== false);
+        setEnableToc(cfg.enable_toc !== false);
+        setTocTitle(cfg.toc_title || "Table of Contents");
+        setTocNumbered(cfg.toc_numbered !== false);
+        setTocToggle(cfg.toc_toggle !== false);
+        setTocIncludeH3(cfg.toc_include_h3 === true);
+      } else if (Array.isArray(fr)) {
+        setFilters(fr);
+      } else {
+        setFilters([]);
+      }
     }
-  }, [template]);
+  }, [template, isLocalSeo]);
+
+  const parsedTerms = searchTerms.split("\n").map(l => l.trim()).filter(Boolean);
+  const parsedLocations = locations.split("\n").map(l => l.trim()).filter(Boolean);
+  const totalUrls = parsedTerms.length * parsedLocations.length;
 
   const addFilter = () => {
     setFilters([...filters, { variable: variables[0] || "", operator: "contains", value: "", matchScope: "any" }]);
@@ -788,135 +917,257 @@ function GenerationConfigDialog({
     setFilters(updated);
   };
 
+  const handleSave = () => {
+    if (isLocalSeo) {
+      onSave({
+        generation_mode: "normal",
+        split_column: null,
+        combo_columns: null,
+        filter_rules: {
+          _local_seo_config: true,
+          search_terms: searchTerms,
+          locations,
+          page_base: pageBase,
+          slug_pattern: slugPattern,
+          archive_title: archiveTitle,
+          overview_label: overviewLabel,
+          enable_archive: enableArchive,
+          exclude_archive_index: excludeArchiveIndex,
+          enable_toc: enableToc,
+          toc_title: tocTitle,
+          toc_numbered: tocNumbered,
+          toc_toggle: tocToggle,
+          toc_include_h3: tocIncludeH3,
+        },
+      });
+    } else {
+      onSave({
+        generation_mode: mode,
+        split_column: mode === "split" ? splitColumn : null,
+        combo_columns: mode === "combo" ? [comboCol1, comboCol2] : null,
+        filter_rules: filters.length > 0 ? filters : null,
+      });
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className={isLocalSeo ? "max-w-2xl max-h-[85vh] overflow-auto" : "max-w-lg"}>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Filter className="h-5 w-5" /> Generation Config</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {isLocalSeo ? <><MapPin className="h-5 w-5" /> Local SEO Generation Config</> : <><Filter className="h-5 w-5" /> Generation Config</>}
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Generation Mode */}
-          <div className="space-y-2">
-            <Label>Generation Mode</Label>
-            <Select value={mode} onValueChange={setMode}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="normal">Normal — one page per data row</SelectItem>
-                <SelectItem value="split">Split — split comma values into separate pages</SelectItem>
-                <SelectItem value="combo">Combo — cartesian product of two columns</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              {mode === "normal" && "Each data row generates one page."}
-              {mode === "split" && "Comma-separated values in a column generate separate pages. e.g., 'Cheap,Exclusive' → 2 pages."}
-              {mode === "combo" && "Generates pages for every combination of two columns. e.g., category × location."}
-            </p>
-          </div>
-
-          {mode === "split" && (
-            <div className="space-y-2">
-              <Label>Column to Split</Label>
-              <Select value={splitColumn} onValueChange={setSplitColumn}>
-                <SelectTrigger><SelectValue placeholder="Select column..." /></SelectTrigger>
-                <SelectContent>
-                  {variables.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">Rows with comma-separated values in this column will generate one page per value.</p>
-            </div>
-          )}
-
-          {mode === "combo" && (
+        {isLocalSeo ? (
+          <div className="space-y-4">
+            {/* URL Settings */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Column A (e.g., category)</Label>
-                <Select value={comboCol1} onValueChange={setComboCol1}>
-                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>
-                    {variables.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Label>SEO Page Base</Label>
+                <Input value={pageBase} onChange={(e) => setPageBase(e.target.value)} placeholder="services" />
+                <p className="text-xs text-muted-foreground">Base path for all generated URLs</p>
               </div>
               <div className="space-y-2">
-                <Label>Column B (e.g., location)</Label>
-                <Select value={comboCol2} onValueChange={setComboCol2}>
-                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                <Label>Slug Pattern</Label>
+                <Input value={slugPattern} onChange={(e) => setSlugPattern(e.target.value)} className="font-mono text-sm" />
+                <p className="text-xs text-muted-foreground">[search_term], [search_terms], [location]</p>
+              </div>
+            </div>
+
+            <div className="bg-muted/50 rounded-lg p-3">
+              <p className="text-xs font-semibold text-muted-foreground">URL Preview:</p>
+              <code className="text-xs text-primary">/{pageBase}/{slugPattern}</code>
+            </div>
+
+            {/* Search Terms */}
+            <div className="space-y-2">
+              <Label>Search Terms</Label>
+              <p className="text-xs text-muted-foreground">One per line. Use | for singular/plural (e.g., "Plumber | Plumbers")</p>
+              <Textarea value={searchTerms} onChange={(e) => setSearchTerms(e.target.value)} rows={6} className="font-mono text-sm" placeholder={"Plumber | Plumbers\nElectrician | Electricians"} />
+              <p className="text-xs text-muted-foreground">Lines: {parsedTerms.length} (max: 20)</p>
+            </div>
+
+            {/* Locations */}
+            <div className="space-y-2">
+              <Label>Locations</Label>
+              <p className="text-xs text-muted-foreground">One location per line</p>
+              <Textarea value={locations} onChange={(e) => setLocations(e.target.value)} rows={8} className="font-mono text-sm" placeholder={"New York\nLos Angeles\nChicago"} />
+              <p className="text-xs text-muted-foreground">Lines: {parsedLocations.length} (max: 300)</p>
+            </div>
+
+            {/* URL Count */}
+            <div className="bg-primary/5 rounded-lg p-3 text-sm">
+              <strong>{totalUrls.toLocaleString()}</strong> URLs will be generated ({parsedTerms.length} terms × {parsedLocations.length} locations)
+              {enableArchive && <span> + 1 archive page</span>}
+            </div>
+
+            {/* Archive Settings */}
+            <div className="space-y-3 border rounded-lg p-4">
+              <Label className="font-semibold">Archive & Indexing</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs">Archive Page Title</Label>
+                  <Input value={archiveTitle} onChange={(e) => setArchiveTitle(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Overview Label</Label>
+                  <Input value={overviewLabel} onChange={(e) => setOverviewLabel(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">Enable Archive Page</Label>
+                <Switch checked={enableArchive} onCheckedChange={setEnableArchive} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">Exclude Archive from Indexing</Label>
+                <Switch checked={excludeArchiveIndex} onCheckedChange={setExcludeArchiveIndex} />
+              </div>
+            </div>
+
+            {/* TOC Settings */}
+            <div className="space-y-3 border rounded-lg p-4">
+              <Label className="font-semibold">Table of Contents</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">Enable Table of Contents</Label>
+                <Switch checked={enableToc} onCheckedChange={setEnableToc} />
+              </div>
+              {enableToc && (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-xs">TOC Title</Label>
+                    <Input value={tocTitle} onChange={(e) => setTocTitle(e.target.value)} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">Numbered List</Label>
+                    <Switch checked={tocNumbered} onCheckedChange={setTocNumbered} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">Allow Toggle</Label>
+                    <Switch checked={tocToggle} onCheckedChange={setTocToggle} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">Include H3 Headings</Label>
+                    <Switch checked={tocIncludeH3} onCheckedChange={setTocIncludeH3} />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Use [nsg-toc] shortcode in your HTML for manual TOC placement.</p>
+                </>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Generation Mode */}
+            <div className="space-y-2">
+              <Label>Generation Mode</Label>
+              <Select value={mode} onValueChange={setMode}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="normal">Normal — one page per data row</SelectItem>
+                  <SelectItem value="split">Split — split comma values into separate pages</SelectItem>
+                  <SelectItem value="combo">Combo — cartesian product of two columns</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {mode === "normal" && "Each data row generates one page."}
+                {mode === "split" && "Comma-separated values in a column generate separate pages."}
+                {mode === "combo" && "Generates pages for every combination of two columns."}
+              </p>
+            </div>
+
+            {mode === "split" && (
+              <div className="space-y-2">
+                <Label>Column to Split</Label>
+                <Select value={splitColumn} onValueChange={setSplitColumn}>
+                  <SelectTrigger><SelectValue placeholder="Select column..." /></SelectTrigger>
                   <SelectContent>
                     {variables.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <p className="text-xs text-muted-foreground col-span-2">Generates one page for every unique combination of values from both columns. Comma-separated values are also split.</p>
-            </div>
-          )}
+            )}
 
-          {/* Filter Rules */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Data Filters</Label>
-              <Button variant="outline" size="sm" onClick={addFilter}>
-                <Plus className="h-3 w-3 mr-1" /> Add Filter
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Only generate pages for rows matching these conditions. Use commas to match multiple values (e.g., "data,frontend" matches either).
-            </p>
-
-            {filters.length > 0 && (
-              <div className="space-y-3">
-                {filters.map((f, i) => (
-                  <div key={i} className="space-y-2 border rounded-lg p-3 bg-muted/20">
-                    <div className="flex gap-2 items-center">
-                      <Select value={f.variable} onValueChange={(v) => updateFilter(i, "variable", v)}>
-                        <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {variables.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <Select value={f.operator} onValueChange={(v) => updateFilter(i, "operator", v)}>
-                        <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="contains">contains</SelectItem>
-                          <SelectItem value="equals">equals</SelectItem>
-                          <SelectItem value="not_contains">not contains</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Input value={f.value} onChange={(e) => updateFilter(i, "value", e.target.value)} placeholder="value1,value2,..." className="flex-1" />
-                      <Button variant="ghost" size="icon" onClick={() => removeFilter(i)} className="h-8 w-8 shrink-0">
-                        <Trash2 className="h-3 w-3 text-destructive" />
-                      </Button>
-                    </div>
-                    {/* Match scope */}
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-muted-foreground whitespace-nowrap">Search in:</Label>
-                      <Select value={f.matchScope || "any"} onValueChange={(v) => updateFilter(i, "matchScope", v)}>
-                        <SelectTrigger className="h-7 w-auto text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="any">Any variable (match in any column)</SelectItem>
-                          <SelectItem value="all">All variables (match in every column)</SelectItem>
-                          <SelectItem value="specific">This variable only</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                ))}
+            {mode === "combo" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Column A</Label>
+                  <Select value={comboCol1} onValueChange={setComboCol1}>
+                    <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                    <SelectContent>
+                      {variables.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Column B</Label>
+                  <Select value={comboCol2} onValueChange={setComboCol2}>
+                    <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                    <SelectContent>
+                      {variables.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
+
+            {/* Filter Rules */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Data Filters</Label>
+                <Button variant="outline" size="sm" onClick={addFilter}>
+                  <Plus className="h-3 w-3 mr-1" /> Add Filter
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Only generate pages for rows matching these conditions.
+              </p>
+
+              {filters.length > 0 && (
+                <div className="space-y-3">
+                  {filters.map((f, i) => (
+                    <div key={i} className="space-y-2 border rounded-lg p-3 bg-muted/20">
+                      <div className="flex gap-2 items-center">
+                        <Select value={f.variable} onValueChange={(v) => updateFilter(i, "variable", v)}>
+                          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {variables.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Select value={f.operator} onValueChange={(v) => updateFilter(i, "operator", v)}>
+                          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="contains">contains</SelectItem>
+                            <SelectItem value="equals">equals</SelectItem>
+                            <SelectItem value="not_contains">not contains</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input value={f.value} onChange={(e) => updateFilter(i, "value", e.target.value)} placeholder="value1,value2,..." className="flex-1" />
+                        <Button variant="ghost" size="icon" onClick={() => removeFilter(i)} className="h-8 w-8 shrink-0">
+                          <Trash2 className="h-3 w-3 text-destructive" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-muted-foreground whitespace-nowrap">Search in:</Label>
+                        <Select value={f.matchScope || "any"} onValueChange={(v) => updateFilter(i, "matchScope", v)}>
+                          <SelectTrigger className="h-7 w-auto text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="any">Any variable</SelectItem>
+                            <SelectItem value="all">All variables</SelectItem>
+                            <SelectItem value="specific">This variable only</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button
-            onClick={() => onSave({
-              generation_mode: mode,
-              split_column: mode === "split" ? splitColumn : null,
-              combo_columns: mode === "combo" ? [comboCol1, comboCol2] : null,
-              filter_rules: filters.length > 0 ? filters : null,
-            })}
-            disabled={saving}
-          >
+          <Button onClick={handleSave} disabled={saving}>
             {saving ? "Saving..." : "Save Config"}
           </Button>
         </DialogFooter>

@@ -187,6 +187,14 @@ export default function PagesTab({ projectId }: PagesTabProps) {
 
       setGenProgress(prev => ({ ...prev!, template: template.name }));
 
+      // Check if this is a Local SEO template
+      const fr = (template as any).filter_rules;
+      const isLocalSeo = fr && typeof fr === "object" && !Array.isArray(fr) && (fr as any)._local_seo_config;
+
+      if (isLocalSeo) {
+        return await generateLocalSeoPages(template, fr as any, regenerate);
+      }
+
       let allRows: any[] = [];
       for (const ds of dataSources) {
         if (Array.isArray(ds.cached_data)) allRows.push(...(ds.cached_data as any[]));
@@ -217,7 +225,6 @@ export default function PagesTab({ projectId }: PagesTabProps) {
       const headerHtml = (project as any)?.header_content || "";
       const footerHtml = (project as any)?.footer_content || "";
 
-      // Pre-build listings JSON once
       const listingsJson = buildListingsJson(allRows);
       const listingsScript = `<script>window.__ALL_LISTINGS__=${listingsJson};</script>`;
 
@@ -265,8 +272,6 @@ export default function PagesTab({ projectId }: PagesTabProps) {
           }
 
           html = spinText(html);
-
-          // Inject listings data for recommendations/SRP
           html = html.replace("</head>", `${listingsScript}\n</head>`);
 
           const filterTag = filterRules && filterRules.length > 0
@@ -293,7 +298,6 @@ export default function PagesTab({ projectId }: PagesTabProps) {
         throw new Error("No new pages to generate. All data rows already have pages.");
       }
 
-      // Batch insert in chunks of 10 with progress updates
       const BATCH_SIZE = 10;
       let inserted = 0;
       setGenProgress({ current: 0, total: pagesToInsert.length, template: template.name });
@@ -320,6 +324,156 @@ export default function PagesTab({ projectId }: PagesTabProps) {
       toast({ title: "Generation failed", description: err.message, variant: "destructive" });
     },
   });
+
+  // Local SEO page generation
+  const generateLocalSeoPages = async (template: any, config: any, regenerate?: boolean) => {
+    const searchTerms = (config.search_terms || "").split("\n").map((l: string) => l.trim()).filter(Boolean).map((line: string) => {
+      const parts = line.split("|").map((s: string) => s.trim()).filter(Boolean);
+      return { singular: parts[0], plural: parts.length > 1 ? parts[1] : parts[0] + "s" };
+    });
+    const locations = (config.locations || "").split("\n").map((l: string) => l.trim()).filter(Boolean);
+    const pageBase = config.page_base || "services";
+    const slugPattern = config.slug_pattern || "[search_term]-in-[location]";
+    const siteName = (project as any)?.site_name || "Local Services";
+
+    if (searchTerms.length === 0 || locations.length === 0) {
+      throw new Error("Configure search terms and locations in the template's Generation Config first.");
+    }
+
+    if (regenerate) {
+      const { error: delErr } = await supabase
+        .from("pages")
+        .delete()
+        .eq("project_id", projectId)
+        .eq("template_id", template.id);
+      if (delErr) throw delErr;
+    }
+
+    const totalPages = searchTerms.length * locations.length + (config.enable_archive ? 1 : 0);
+    const allPages: any[] = [];
+
+    for (const term of searchTerms) {
+      for (const loc of locations) {
+        const slug = slugPattern
+          .replace(/\[search_term\]/g, term.singular.toLowerCase().replace(/[^a-z0-9]+/g, "-"))
+          .replace(/\[search_terms\]/g, term.plural.toLowerCase().replace(/[^a-z0-9]+/g, "-"))
+          .replace(/\[location\]/g, loc.toLowerCase().replace(/[^a-z0-9]+/g, "-"));
+
+        let html = template.html_content;
+        html = html.replace(/\[search_term\]/g, term.singular);
+        html = html.replace(/\[search_terms\]/g, term.plural);
+        html = html.replace(/\[location\]/g, loc);
+
+        // Build TOC if enabled
+        if (config.enable_toc) {
+          const headingRegex = config.toc_include_h3 ? /<h[23][^>]*>(.*?)<\/h[23]>/gi : /<h2[^>]*>(.*?)<\/h2>/gi;
+          const headings: string[] = [];
+          let match;
+          while ((match = headingRegex.exec(html)) !== null) {
+            headings.push(match[1].replace(/<[^>]+>/g, ""));
+          }
+          if (headings.length > 0) {
+            const listTag = config.toc_numbered ? "ol" : "ul";
+            const tocHtml = `<div class="toc"${config.toc_toggle ? ' id="toc-container"' : ''}>
+              <h4>${config.toc_title || "Table of Contents"}${config.toc_toggle ? ' <span onclick="document.getElementById(\'toc-list\').style.display=document.getElementById(\'toc-list\').style.display===\'none\'?\'block\':\'none\'" style="cursor:pointer;float:right;font-size:.8rem;color:var(--c-accent)">[toggle]</span>' : ''}</h4>
+              <${listTag} id="toc-list">${headings.map((h, i) => `<li><a href="#section-${i + 1}">${h}</a></li>`).join("")}</${listTag}>
+            </div>`;
+
+            if (html.includes("[nsg-toc]")) {
+              html = html.replace(/\[nsg-toc\]/g, tocHtml);
+            } else {
+              // Add after first h1
+              html = html.replace(/(<\/h1>)/i, `$1\n${tocHtml}`);
+            }
+
+            let idx = 0;
+            html = html.replace(/<(h[23])([^>]*)>/gi, (m, tag, attrs) => {
+              idx++;
+              return `<${tag}${attrs} id="section-${idx}">`;
+            });
+          }
+        }
+
+        html = spinText(html);
+
+        let title = (template.meta_title_pattern || "[search_term] in [location]")
+          .replace(/\[search_term\]/g, term.singular)
+          .replace(/\[search_terms\]/g, term.plural)
+          .replace(/\[location\]/g, loc);
+        let desc = (template.meta_description_pattern || "")
+          .replace(/\[search_term\]/g, term.singular)
+          .replace(/\[search_terms\]/g, term.plural)
+          .replace(/\[location\]/g, loc);
+
+        allPages.push({
+          project_id: projectId,
+          template_id: template.id,
+          title,
+          slug,
+          url_path: `/${pageBase}/${slug}/`,
+          status: "draft" as const,
+          data: { _local_seo: true, search_term: term.singular, search_terms: term.plural, location: loc, page_base: pageBase } as unknown as Json,
+          meta_title: title,
+          meta_description: desc,
+          generated_html: html,
+          schema_markup: { "@context": "https://schema.org", "@type": "Service", name: title, areaServed: { "@type": "Place", name: loc } } as unknown as Json,
+        });
+      }
+    }
+
+    // Archive page
+    if (config.enable_archive) {
+      const archiveTitle = config.archive_title || "Archive";
+      const groupedByTerm: Record<string, { term: string; urls: { location: string; url: string }[] }> = {};
+      for (const term of searchTerms) {
+        groupedByTerm[term.singular] = { term: term.singular, urls: [] };
+        for (const loc of locations) {
+          const slug = slugPattern
+            .replace(/\[search_term\]/g, term.singular.toLowerCase().replace(/[^a-z0-9]+/g, "-"))
+            .replace(/\[search_terms\]/g, term.plural.toLowerCase().replace(/[^a-z0-9]+/g, "-"))
+            .replace(/\[location\]/g, loc.toLowerCase().replace(/[^a-z0-9]+/g, "-"));
+          groupedByTerm[term.singular].urls.push({ location: loc, url: `/${pageBase}/${slug}` });
+        }
+      }
+
+      const sections = Object.values(groupedByTerm).map(g => `
+        <h2>${g.term}</h2>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.5rem;margin-bottom:1.5rem">
+          ${g.urls.map(u => `<a href="${u.url}" style="display:block;padding:.5rem .75rem;background:#fff;border:1px solid #e2e8f0;border-radius:6px;font-size:.85rem">${g.term} in ${u.location}</a>`).join("")}
+        </div>
+      `).join("");
+
+      const archiveHtml = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${archiveTitle}</title>${config.exclude_archive_index ? '<meta name="robots" content="noindex, follow">' : ''}<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#f7f8fc;color:#2d3748;line-height:1.6}.container{max-width:900px;margin:0 auto;padding:2rem}h1{font-size:2rem;margin-bottom:1rem}h2{font-size:1.3rem;margin:1.5rem 0 .75rem}</style></head><body><div class="container"><h1>${archiveTitle}</h1><p>${totalPages} pages</p>${sections}</div></body></html>`;
+
+      allPages.push({
+        project_id: projectId,
+        template_id: template.id,
+        title: archiveTitle,
+        slug: pageBase,
+        url_path: `/${pageBase}/`,
+        status: "draft" as const,
+        data: { _local_seo: true, _archive: true, page_base: pageBase } as unknown as Json,
+        meta_title: archiveTitle,
+        meta_description: `Browse all ${totalPages} local service pages.`,
+        generated_html: archiveHtml,
+        schema_markup: { "@context": "https://schema.org", "@type": "CollectionPage", name: archiveTitle } as unknown as Json,
+      });
+    }
+
+    const BATCH_SIZE = 10;
+    let inserted = 0;
+    setGenProgress({ current: 0, total: allPages.length, template: template.name });
+
+    for (let i = 0; i < allPages.length; i += BATCH_SIZE) {
+      const batch = allPages.slice(i, i + BATCH_SIZE);
+      const { error } = await supabase.from("pages").insert(batch);
+      if (error) throw error;
+      inserted += batch.length;
+      setGenProgress({ current: inserted, total: allPages.length, template: template.name });
+    }
+
+    return inserted;
+  };
 
   const updatePage = useMutation({
     mutationFn: async (page: any) => {
