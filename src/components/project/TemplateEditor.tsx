@@ -26,22 +26,37 @@ export default function TemplateEditor({ template, projectId, onBack }: Template
   const [metaDesc, setMetaDesc] = useState(template.meta_description_pattern || "");
   const [previewMode, setPreviewMode] = useState(false);
 
-  // Get sample data from first data source
-  const { data: sampleData } = useQuery({
-    queryKey: ["sample-data", projectId],
+  // Get ALL data sources to collect all variables
+  const { data: allDataSources = [] } = useQuery({
+    queryKey: ["all-data-sources", projectId],
     queryFn: async () => {
       const { data } = await supabase
         .from("data_sources")
         .select("cached_data")
-        .eq("project_id", projectId)
-        .limit(1)
-        .maybeSingle();
-      if (data?.cached_data && Array.isArray(data.cached_data)) {
-        return (data.cached_data as any[])[0] ?? {};
-      }
-      return { title: "Sample Title", description: "Sample description text", category: "Technology", location: "San Francisco", image: "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?w=800", slug: "sample-page", rating: "4.5", price: "$99" };
+        .eq("project_id", projectId);
+      return data || [];
     },
   });
+
+  // Build sampleData from first row, and collect ALL variable keys
+  const sampleData = (() => {
+    for (const ds of allDataSources) {
+      if (Array.isArray(ds.cached_data) && (ds.cached_data as any[]).length > 0) {
+        return (ds.cached_data as any[])[0];
+      }
+    }
+    return { title: "Sample Title", description: "Sample description text", category: "Technology", location: "San Francisco", image: "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?w=800", slug: "sample-page", rating: "4.5", price: "$99" };
+  })();
+
+  // Collect ALL unique variable names across all data sources
+  const availableVars: string[] = [];
+  for (const ds of allDataSources) {
+    if (Array.isArray(ds.cached_data) && (ds.cached_data as any[]).length > 0) {
+      for (const key of Object.keys((ds.cached_data as any[])[0])) {
+        if (!availableVars.includes(key)) availableVars.push(key);
+      }
+    }
+  }
 
   const save = useMutation({
     mutationFn: async () => {
@@ -78,7 +93,7 @@ export default function TemplateEditor({ template, projectId, onBack }: Template
     return rendered;
   }, [html, css, sampleData]);
 
-  const availableVars = sampleData ? Object.keys(sampleData) : [];
+  // availableVars already computed above from all data sources
 
   return (
     <div className="space-y-4">

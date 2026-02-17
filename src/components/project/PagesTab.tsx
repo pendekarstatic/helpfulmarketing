@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Eye, Trash2, Wand2, Edit, Save, ChevronDown, ChevronUp } from "lucide-react";
+import { FileText, Eye, Trash2, Wand2, Edit, Save, ChevronDown, ChevronUp, ExternalLink, RefreshCw } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
 
 interface PagesTabProps {
@@ -25,6 +25,7 @@ export default function PagesTab({ projectId }: PagesTabProps) {
   const [generating, setGenerating] = useState(false);
   const [editingPage, setEditingPage] = useState<any | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [templateFilter, setTemplateFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<string>("created_at");
   const [sortAsc, setSortAsc] = useState(false);
@@ -66,7 +67,6 @@ export default function PagesTab({ projectId }: PagesTabProps) {
     },
   });
 
-  // Fetch project settings for URL format & header/footer
   const { data: project } = useQuery({
     queryKey: ["project", projectId],
     queryFn: async () => {
@@ -82,10 +82,8 @@ export default function PagesTab({ projectId }: PagesTabProps) {
 
   const formatUrl = (path: string): string => {
     const fmt = (project as any)?.url_format || "pretty_slash";
-    // Clean the path
     let clean = path.replace(/\/+/g, "/").replace(/^\//, "");
     clean = clean.replace(/\.html$/, "").replace(/\/index$/, "").replace(/\/$/, "");
-    
     switch (fmt) {
       case "pretty_slash": return `/${clean}/`;
       case "pretty_no_slash": return `/${clean}`;
@@ -96,7 +94,7 @@ export default function PagesTab({ projectId }: PagesTabProps) {
   };
 
   const generatePages = useMutation({
-    mutationFn: async (templateId: string) => {
+    mutationFn: async ({ templateId, regenerate }: { templateId: string; regenerate?: boolean }) => {
       setGenerating(true);
       const template = templates.find((t) => t.id === templateId);
       if (!template) throw new Error("Template not found");
@@ -106,70 +104,91 @@ export default function PagesTab({ projectId }: PagesTabProps) {
       }
       if (allRows.length === 0) throw new Error("No data available. Add a data source first.");
 
+      // Get existing page slugs for this template to prevent duplicates
+      const existingSlugs = new Set(
+        pages
+          .filter((p) => !regenerate && p.template_id === templateId)
+          .map((p) => p.slug)
+      );
+
+      // If regenerate, delete existing pages for this template first
+      if (regenerate) {
+        const { error: delErr } = await supabase
+          .from("pages")
+          .delete()
+          .eq("project_id", projectId)
+          .eq("template_id", templateId);
+        if (delErr) throw delErr;
+      }
+
       const useHF = (project as any)?.use_header_footer;
       const headerHtml = (project as any)?.header_content || "";
       const footerHtml = (project as any)?.footer_content || "";
 
-      const pagesToInsert = allRows.map((row) => {
-        let html = template.html_content;
-        // Use first non-empty value from common title fields, fallback to first column value
-        const title = row.title || row.name || row.Name || row.Title || 
-                      Object.values(row).find((v) => typeof v === "string" && (v as string).trim()) || "Untitled";
-        const slug = (row.slug || String(title)).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const pagesToInsert = allRows
+        .map((row) => {
+          let html = template.html_content;
+          const title = row.title || row.name || row.Name || row.Title || 
+                        Object.values(row).find((v) => typeof v === "string" && (v as string).trim()) || "Untitled";
+          const slug = (row.slug || String(title)).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-        // Replace variables, using empty string for missing data (default behavior)
-        Object.entries(row).forEach(([key, value]) => {
-          html = html.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(value ?? ""));
-        });
+          // Skip duplicates
+          if (existingSlugs.has(slug)) return null;
+          existingSlugs.add(slug);
 
-        let metaTitle = template.meta_title_pattern || "{{title}}";
-        let metaDesc = template.meta_description_pattern || "{{description}}";
-        Object.entries(row).forEach(([key, value]) => {
-          metaTitle = metaTitle.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(value ?? ""));
-          metaDesc = metaDesc.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(value ?? ""));
-        });
-        // Replace remaining unresolved variables with empty string
-        metaTitle = metaTitle.replace(/\{\{[^}]+\}\}/g, "");
-        metaDesc = metaDesc.replace(/\{\{[^}]+\}\}/g, "");
+          Object.entries(row).forEach(([key, value]) => {
+            html = html.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(value ?? ""));
+          });
 
-        let urlPath = template.url_pattern || "/{{slug}}";
-        Object.entries(row).forEach(([key, value]) => {
-          urlPath = urlPath.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-"));
-        });
-        urlPath = urlPath.replace(/\{\{slug\}\}/g, slug);
-        urlPath = formatUrl(urlPath);
+          let metaTitle = template.meta_title_pattern || "{{title}}";
+          let metaDesc = template.meta_description_pattern || "{{description}}";
+          Object.entries(row).forEach(([key, value]) => {
+            metaTitle = metaTitle.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(value ?? ""));
+            metaDesc = metaDesc.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(value ?? ""));
+          });
+          metaTitle = metaTitle.replace(/\{\{[^}]+\}\}/g, "");
+          metaDesc = metaDesc.replace(/\{\{[^}]+\}\}/g, "");
 
-        // JSON-LD structured data
-        const schemaType = template.schema_type || "Thing";
-        const schemaMarkup = generateJsonLd(schemaType, row, String(title), metaDesc);
+          let urlPath = template.url_pattern || "/{{slug}}";
+          Object.entries(row).forEach(([key, value]) => {
+            urlPath = urlPath.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-"));
+          });
+          urlPath = urlPath.replace(/\{\{slug\}\}/g, slug);
+          urlPath = formatUrl(urlPath);
 
-        // Inject JSON-LD + breadcrumbs into HTML
-        const breadcrumbHtml = `<nav aria-label="breadcrumb" style="font-size:0.8rem;color:#666;margin-bottom:1rem;"><a href="/" style="color:#5b4fe0;text-decoration:none;">Home</a> › ${row.category ? `<a href="/category/${(row.category || "").toLowerCase().replace(/[^a-z0-9]+/g, "-")}" style="color:#5b4fe0;text-decoration:none;">${row.category}</a> › ` : ""}${title}</nav>`;
-        const jsonLdScript = `<script type="application/ld+json">${JSON.stringify(schemaMarkup)}</script>`;
+          const schemaType = template.schema_type || "Thing";
+          const schemaMarkup = generateJsonLd(schemaType, row, String(title), metaDesc);
 
-        html = html.replace("<body>", `<body>\n${jsonLdScript}`);
-        html = html.replace(/<div class="container">/i, `<div class="container">\n${breadcrumbHtml}`);
+          const breadcrumbHtml = `<nav aria-label="breadcrumb" style="font-size:0.8rem;color:#666;margin-bottom:1rem;"><a href="/" style="color:#5b4fe0;text-decoration:none;">Home</a> › ${row.category ? `<a href="/category/${(row.category || "").toLowerCase().replace(/[^a-z0-9]+/g, "-")}" style="color:#5b4fe0;text-decoration:none;">${row.category}</a> › ` : ""}${title}</nav>`;
+          const jsonLdScript = `<script type="application/ld+json">${JSON.stringify(schemaMarkup)}</script>`;
 
-        // Inject shared header/footer if enabled
-        if (useHF) {
-          if (headerHtml) html = html.replace("<body>", `<body>\n${headerHtml}`);
-          if (footerHtml) html = html.replace("</body>", `${footerHtml}\n</body>`);
-        }
+          html = html.replace("<body>", `<body>\n${jsonLdScript}`);
+          html = html.replace(/<div class="container">/i, `<div class="container">\n${breadcrumbHtml}`);
 
-        return {
-          project_id: projectId,
-          template_id: templateId,
-          title: String(title),
-          slug,
-          url_path: urlPath,
-          status: "draft" as const,
-          data: row as unknown as Json,
-          meta_title: metaTitle || String(title),
-          meta_description: metaDesc,
-          generated_html: html,
-          schema_markup: schemaMarkup as unknown as Json,
-        };
-      });
+          if (useHF) {
+            if (headerHtml) html = html.replace("<body>", `<body>\n${headerHtml}`);
+            if (footerHtml) html = html.replace("</body>", `${footerHtml}\n</body>`);
+          }
+
+          return {
+            project_id: projectId,
+            template_id: templateId,
+            title: String(title),
+            slug,
+            url_path: urlPath,
+            status: "draft" as const,
+            data: row as unknown as Json,
+            meta_title: metaTitle || String(title),
+            meta_description: metaDesc,
+            generated_html: html,
+            schema_markup: schemaMarkup as unknown as Json,
+          };
+        })
+        .filter(Boolean);
+
+      if (pagesToInsert.length === 0) {
+        throw new Error("No new pages to generate. All data rows already have pages (no duplicates created).");
+      }
 
       const { error } = await supabase.from("pages").insert(pagesToInsert);
       if (error) throw error;
@@ -178,7 +197,7 @@ export default function PagesTab({ projectId }: PagesTabProps) {
     onSuccess: (count) => {
       setGenerating(false);
       queryClient.invalidateQueries({ queryKey: ["pages", projectId] });
-      toast({ title: `${count} pages generated with JSON-LD & breadcrumbs!` });
+      toast({ title: `${count} pages generated (duplicates skipped)!` });
     },
     onError: (err: any) => {
       setGenerating(false);
@@ -247,9 +266,42 @@ export default function PagesTab({ projectId }: PagesTabProps) {
     },
   });
 
+  const openPreviewNewTab = (html: string, title: string) => {
+    const w = window.open("", "_blank");
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+      w.document.title = title;
+    }
+  };
+
+  // Get unique template names for filter
+  const templateNames = new Map<string, string>();
+  for (const p of pages) {
+    if (p.template_id) {
+      const t = templates.find((t) => t.id === p.template_id);
+      if (t) templateNames.set(t.id, t.name);
+    }
+  }
+
   const filteredPages = pages
     .filter((p) => statusFilter === "all" || p.status === statusFilter)
-    .filter((p) => !searchQuery || p.title.toLowerCase().includes(searchQuery.toLowerCase()) || p.slug.toLowerCase().includes(searchQuery.toLowerCase()))
+    .filter((p) => templateFilter === "all" || p.template_id === templateFilter)
+    .filter((p) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      const d = p.data as any;
+      // Search across title, slug, url_path, meta fields, and all data fields
+      if (p.title.toLowerCase().includes(q)) return true;
+      if (p.slug.toLowerCase().includes(q)) return true;
+      if (p.url_path?.toLowerCase().includes(q)) return true;
+      if (p.meta_title?.toLowerCase().includes(q)) return true;
+      if (p.meta_description?.toLowerCase().includes(q)) return true;
+      if (d && typeof d === "object") {
+        return Object.values(d).some((v) => String(v ?? "").toLowerCase().includes(q));
+      }
+      return false;
+    })
     .sort((a, b) => {
       const aVal = (a as any)[sortField] || "";
       const bVal = (b as any)[sortField] || "";
@@ -300,16 +352,28 @@ export default function PagesTab({ projectId }: PagesTabProps) {
             </>
           )}
           {templates.length > 0 && (
-            <Select onValueChange={(v) => generatePages.mutate(v)}>
-              <SelectTrigger className="w-auto h-9">
-                <span className="text-sm flex items-center gap-1"><Wand2 className="h-3 w-3" /> {generating ? "Generating..." : "Generate"}</span>
-              </SelectTrigger>
-              <SelectContent>
-                {templates.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <>
+              <Select onValueChange={(v) => generatePages.mutate({ templateId: v })}>
+                <SelectTrigger className="w-auto h-9">
+                  <span className="text-sm flex items-center gap-1"><Wand2 className="h-3 w-3" /> {generating ? "Generating..." : "Generate"}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select onValueChange={(v) => generatePages.mutate({ templateId: v, regenerate: true })}>
+                <SelectTrigger className="w-auto h-9">
+                  <span className="text-sm flex items-center gap-1"><RefreshCw className="h-3 w-3" /> Regenerate</span>
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name} (replace existing)</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
           )}
         </div>
       </div>
@@ -317,7 +381,7 @@ export default function PagesTab({ projectId }: PagesTabProps) {
       {/* Filters */}
       {pages.length > 0 && (
         <div className="flex gap-3 flex-wrap">
-          <Input placeholder="Search pages..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="max-w-xs h-9" />
+          <Input placeholder="Search all fields..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="max-w-xs h-9" />
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-32 h-9"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -327,6 +391,17 @@ export default function PagesTab({ projectId }: PagesTabProps) {
               <SelectItem value="archived">Archived</SelectItem>
             </SelectContent>
           </Select>
+          {templateNames.size > 0 && (
+            <Select value={templateFilter} onValueChange={setTemplateFilter}>
+              <SelectTrigger className="w-44 h-9"><SelectValue placeholder="All Templates" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Templates</SelectItem>
+                {Array.from(templateNames.entries()).map(([id, name]) => (
+                  <SelectItem key={id} value={id}>{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       )}
 
@@ -375,6 +450,9 @@ export default function PagesTab({ projectId }: PagesTabProps) {
                       </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" title="Preview" onClick={() => setPreviewHtml(page.generated_html)}>
                         <Eye className="h-3 w-3" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Open in new tab" onClick={() => openPreviewNewTab(page.generated_html || "", page.title)}>
+                        <ExternalLink className="h-3 w-3" />
                       </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deletePage.mutate(page.id)}>
                         <Trash2 className="h-3 w-3 text-destructive" />
@@ -443,7 +521,12 @@ export default function PagesTab({ projectId }: PagesTabProps) {
       <Dialog open={!!previewHtml} onOpenChange={() => setPreviewHtml(null)}>
         <DialogContent className="max-w-4xl max-h-[85vh]">
           <DialogHeader>
-            <DialogTitle>Page Preview</DialogTitle>
+            <DialogTitle className="flex items-center justify-between">
+              Page Preview
+              <Button variant="outline" size="sm" onClick={() => previewHtml && openPreviewNewTab(previewHtml, "Preview")}>
+                <ExternalLink className="h-3 w-3 mr-1" /> Open in New Tab
+              </Button>
+            </DialogTitle>
           </DialogHeader>
           <div className="border rounded-lg overflow-hidden" style={{ height: "70vh" }}>
             <iframe title="Page Preview" srcDoc={previewHtml || ""} className="w-full h-full" sandbox="allow-same-origin" />

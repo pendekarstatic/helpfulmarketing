@@ -5,12 +5,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileCode, Trash2, Edit, Copy, Eye, BookTemplate, Sparkles } from "lucide-react";
+import { Plus, FileCode, Trash2, Edit, Copy, BookTemplate, Sparkles, Wand2, Eye } from "lucide-react";
 import TemplateEditor from "./TemplateEditor";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -54,7 +55,6 @@ const BUILTIN_TEMPLATES: Record<string, { name: string; type: TemplateType; html
     .card-body{padding:2rem}
     h1{font-size:1.75rem;margin-bottom:0.5rem}
     .meta{display:flex;gap:1rem;color:#64748b;font-size:0.875rem;margin-bottom:1rem;flex-wrap:wrap}
-    .meta span{display:flex;align-items:center;gap:0.25rem}
     .badge{background:#e0e7ff;color:#4338ca;padding:0.25rem 0.75rem;border-radius:20px;font-size:0.75rem;font-weight:600}
     .rating{color:#f59e0b;font-weight:700}
     .description{line-height:1.8;color:#475569;margin-top:1rem}
@@ -104,9 +104,6 @@ const BUILTIN_TEMPLATES: Record<string, { name: string; type: TemplateType; html
     .tag{background:#f4f4f5;border:1px solid #e4e4e7;padding:0.2rem 0.6rem;border-radius:6px;font-size:0.75rem;color:#52525b}
     .pricing{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;padding:1.5rem;border-radius:12px;margin:1.5rem 0;font-size:1.25rem;font-weight:700;text-align:center}
     .desc{line-height:1.8;color:#3f3f46}
-    .features{list-style:none;margin-top:1rem}
-    .features li{padding:0.5rem 0;border-bottom:1px solid #f4f4f5;display:flex;align-items:center;gap:0.5rem}
-    .features li::before{content:"✓";color:#22c55e;font-weight:700}
   </style>
 </head>
 <body>
@@ -229,8 +226,6 @@ const BUILTIN_TEMPLATES: Record<string, { name: string; type: TemplateType; html
     h1{font-size:2rem;border-bottom:2px solid #fbbf24;padding-bottom:0.75rem;margin-bottom:1.5rem}
     .category{background:#fef3c7;color:#92400e;padding:0.2rem 0.6rem;border-radius:4px;font-size:0.75rem;font-weight:600;display:inline-block;margin-bottom:1rem}
     .content{line-height:2;font-size:1.05rem;color:#44403c}
-    .related{margin-top:2rem;padding-top:1.5rem;border-top:1px solid #e7e5e4}
-    .related h3{font-size:0.875rem;color:#78716c;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem}
   </style>
 </head>
 <body>
@@ -325,6 +320,13 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
   const [createOpen, setCreateOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiBrandGuidelines, setAiBrandGuidelines] = useState("");
+  const [aiPreviewHtml, setAiPreviewHtml] = useState<string | null>(null);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiTemplateName, setAiTemplateName] = useState("AI Generated Template");
+  const [aiTemplateType, setAiTemplateType] = useState<TemplateType>("custom");
 
   const { data: templates = [] } = useQuery({
     queryKey: ["templates", projectId],
@@ -338,6 +340,49 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
       return data;
     },
   });
+
+  // Get available data for variable info and page count
+  const { data: dataSources = [] } = useQuery({
+    queryKey: ["data-sources", projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("data_sources")
+        .select("cached_data")
+        .eq("project_id", projectId);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: project } = useQuery({
+    queryKey: ["project", projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("brand_guidelines, openrouter_api_key, straico_api_key, ai_model")
+        .eq("id", projectId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Calculate total available rows for page generation
+  const totalDataRows = dataSources.reduce((sum, ds) => {
+    if (Array.isArray(ds.cached_data)) return sum + (ds.cached_data as any[]).length;
+    return sum;
+  }, 0);
+
+  // Get all available variables from data
+  const allVariables: string[] = [];
+  for (const ds of dataSources) {
+    if (Array.isArray(ds.cached_data) && (ds.cached_data as any[]).length > 0) {
+      const keys = Object.keys((ds.cached_data as any[])[0]);
+      for (const k of keys) {
+        if (!allVariables.includes(k)) allVariables.push(k);
+      }
+    }
+  }
 
   const createTemplate = useMutation({
     mutationFn: async ({ name, template_type, html, urlPattern, schemaType }: { name: string; template_type: TemplateType; html?: string; urlPattern?: string; schemaType?: string }) => {
@@ -358,6 +403,8 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
       queryClient.invalidateQueries({ queryKey: ["templates", projectId] });
       setCreateOpen(false);
       setLibraryOpen(false);
+      setAiOpen(false);
+      setAiPreviewHtml(null);
       toast({ title: "Template created!" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
@@ -405,17 +452,112 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
     });
   };
 
+  const handleAiGenerate = async () => {
+    if (!aiPrompt.trim()) {
+      toast({ title: "Please describe the website you want to generate", variant: "destructive" });
+      return;
+    }
+
+    const apiKey = project?.openrouter_api_key || project?.straico_api_key;
+    if (!apiKey) {
+      toast({ title: "No AI API key configured", description: "Go to Project Settings → AI Web Creation to add your OpenRouter or Straico API key.", variant: "destructive" });
+      return;
+    }
+
+    setAiGenerating(true);
+    try {
+      const variablesList = allVariables.map(v => `{{${v}}}`).join(", ");
+      const guidelines = aiBrandGuidelines || project?.brand_guidelines || "";
+      
+      const systemPrompt = `You are an expert web designer. Generate a complete, beautiful, responsive HTML page template.
+The template must use these template variables for dynamic content: ${variablesList}
+Variables are injected as {{variable_name}} in the HTML.
+${guidelines ? `\nBrand Guidelines:\n${guidelines}` : ""}
+Return ONLY the complete HTML code, starting with <!DOCTYPE html>. Include all CSS inline in a <style> tag.
+Make the design modern, clean, and professional. Use semantic HTML.`;
+
+      const isOpenRouter = !!project?.openrouter_api_key;
+      const model = project?.ai_model || (isOpenRouter ? "openai/gpt-4o" : "");
+      
+      let response;
+      if (isOpenRouter) {
+        response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: aiPrompt },
+            ],
+          }),
+        });
+      } else {
+        response = await fetch("https://api.straico.com/v1/prompt/completion", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: model || "openai/gpt-4o",
+            message: `${systemPrompt}\n\nUser request: ${aiPrompt}`,
+          }),
+        });
+      }
+
+      if (!response.ok) throw new Error(`AI API error: ${response.status}`);
+      
+      const data = await response.json();
+      let htmlContent = "";
+      
+      if (isOpenRouter) {
+        htmlContent = data.choices?.[0]?.message?.content || "";
+      } else {
+        htmlContent = data.data?.completion?.choices?.[0]?.message?.content || data.completion || "";
+      }
+
+      // Extract HTML from markdown code blocks if present
+      const codeBlockMatch = htmlContent.match(/```html?\s*([\s\S]*?)```/);
+      if (codeBlockMatch) {
+        htmlContent = codeBlockMatch[1].trim();
+      }
+
+      if (!htmlContent.includes("<!DOCTYPE") && !htmlContent.includes("<html")) {
+        throw new Error("AI did not return valid HTML. Please try again.");
+      }
+
+      setAiPreviewHtml(htmlContent);
+      toast({ title: "AI template generated! Review the preview below." });
+    } catch (err: any) {
+      toast({ title: "AI generation failed", description: err.message, variant: "destructive" });
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handleApproveAiTemplate = () => {
+    if (!aiPreviewHtml) return;
+    createTemplate.mutate({
+      name: aiTemplateName,
+      template_type: aiTemplateType,
+      html: aiPreviewHtml,
+    });
+  };
+
   const editingTemplate = editingId ? templates.find((t) => t.id === editingId) : null;
 
   if (editingTemplate) {
     return <TemplateEditor template={editingTemplate} projectId={projectId} onBack={() => setEditingId(null)} />;
   }
 
-  // Filter built-in templates based on mode
-  const relevantBuiltins = Object.entries(BUILTIN_TEMPLATES).filter(([key, t]) => {
+  const relevantBuiltins = Object.entries(BUILTIN_TEMPLATES).filter(([key]) => {
     if (projectMode === "pseo") return ["best_x_in_y", "glossary", "category_hub"].includes(key);
     if (projectMode === "directory") return ["business_directory", "saas_directory", "job_board", "category_hub"].includes(key);
-    return true; // hybrid gets all
+    return true;
   });
 
   return (
@@ -423,9 +565,14 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h3 className="text-xl font-semibold">Templates</h3>
-          <p className="text-sm text-muted-foreground">HTML templates with {"{{variable}}"} injection</p>
+          <p className="text-sm text-muted-foreground">
+            HTML templates with {"{{variable}}"} injection · <strong>{totalDataRows} data rows</strong> available for page generation
+          </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => { setAiOpen(true); setAiPreviewHtml(null); setAiBrandGuidelines(project?.brand_guidelines || ""); }}>
+            <Wand2 className="h-4 w-4 mr-1" /> AI Generate
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setLibraryOpen(true)}>
             <BookTemplate className="h-4 w-4 mr-1" /> Library
           </Button>
@@ -464,6 +611,109 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
         </div>
       </div>
 
+      {/* Available Variables */}
+      {allVariables.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Available Variables ({allVariables.length})</CardTitle>
+            <CardDescription className="text-xs">These variables from your data sources can be used in templates as {"{{variable}}"}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="max-h-[7.5rem] overflow-auto">
+              <div className="flex flex-wrap gap-1.5">
+                {allVariables.map((v) => (
+                  <code key={v} className="text-xs bg-muted px-2 py-1 rounded font-mono">{`{{${v}}}`}</code>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* AI Generate Dialog */}
+      <Dialog open={aiOpen} onOpenChange={setAiOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Wand2 className="h-5 w-5 text-primary" /> AI Website Generator</DialogTitle>
+          </DialogHeader>
+          
+          {!aiPreviewHtml ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Template Name</Label>
+                  <Input value={aiTemplateName} onChange={(e) => setAiTemplateName(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Template Type</Label>
+                  <Select value={aiTemplateType} onValueChange={(v) => setAiTemplateType(v as TemplateType)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(TEMPLATE_LABELS).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Describe the website you want</Label>
+                <Textarea
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  rows={4}
+                  placeholder="e.g., A modern business directory page with a hero image, rating stars, contact info section, and a clean card layout. Use blue and white color scheme."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Brand Guidelines (optional)</Label>
+                <Textarea
+                  value={aiBrandGuidelines}
+                  onChange={(e) => setAiBrandGuidelines(e.target.value)}
+                  rows={3}
+                  placeholder="Brand voice, colors, fonts, tone, target audience..."
+                />
+              </div>
+
+              {allVariables.length > 0 && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Available variables (AI will use these):</Label>
+                  <div className="max-h-[5rem] overflow-auto">
+                    <div className="flex flex-wrap gap-1">
+                      {allVariables.map((v) => (
+                        <code key={v} className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">{`{{${v}}}`}</code>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button onClick={handleAiGenerate} disabled={aiGenerating}>
+                  <Sparkles className="h-4 w-4 mr-1" /> {aiGenerating ? "Generating..." : "Generate HTML"}
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="border rounded-lg overflow-hidden" style={{ height: "60vh" }}>
+                <iframe title="AI Preview" srcDoc={aiPreviewHtml} className="w-full h-full" sandbox="allow-same-origin" />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setAiPreviewHtml(null)}>
+                  ← Regenerate
+                </Button>
+                <Button onClick={handleApproveAiTemplate} disabled={createTemplate.isPending}>
+                  <Sparkles className="h-4 w-4 mr-1" /> Approve & Save Template
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Template Library Dialog */}
       <Dialog open={libraryOpen} onOpenChange={setLibraryOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
@@ -493,8 +743,11 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <FileCode className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-1">No templates yet</h3>
-            <p className="text-muted-foreground mb-4">Use the Library for pre-built templates or create a custom one.</p>
+            <p className="text-muted-foreground mb-4">Use the Library for pre-built templates, AI Generate, or create a custom one.</p>
             <div className="flex gap-2">
+              <Button variant="outline" onClick={() => { setAiOpen(true); setAiPreviewHtml(null); }}>
+                <Wand2 className="h-4 w-4 mr-1" /> AI Generate
+              </Button>
               <Button variant="outline" onClick={() => setLibraryOpen(true)}>
                 <BookTemplate className="h-4 w-4 mr-1" /> Browse Library
               </Button>
@@ -519,6 +772,9 @@ export default function TemplatesTab({ projectId, projectMode }: TemplatesTabPro
                     </CardDescription>
                   </div>
                 </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Can generate <strong>{totalDataRows}</strong> pages from current data
+                </p>
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="flex gap-1">
