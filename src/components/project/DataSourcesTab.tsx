@@ -324,16 +324,15 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
                     </div>
                     <div className="flex gap-1">
                       {rowCount > 0 && (
-                        <>
-                          <Button variant="ghost" size="icon" title="Preview Data" onClick={() => setPreviewSource(source.id)}>
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" title="Column Mapping" onClick={() => { setMappingSource(source.id); setColumnMap((source.column_mapping as Record<string, string>) || {}); }}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </>
+                        <Button variant="ghost" size="icon" title="Preview / Edit Data" onClick={() => setPreviewSource(source.id)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
                       )}
-                      {/* Re-fetch / Refresh for all data source types with URLs */}
+                      {rowCount > 0 && (
+                        <Button variant="ghost" size="icon" title="Column Mapping" onClick={() => { setMappingSource(source.id); setColumnMap((source.column_mapping as Record<string, string>) || {}); }}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
                       {(source.source_type === "published_url") && (
                         <Button variant="ghost" size="icon" title="Re-fetch data from source" onClick={() => refreshSource.mutate(source)} disabled={refreshSource.isPending}>
                           <RefreshCw className={`h-4 w-4 ${refreshSource.isPending ? "animate-spin" : ""}`} />
@@ -420,7 +419,7 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Data Preview Dialog with inline editing */}
+      {/* Data Preview Dialog with inline editing - opens in current tab, not blank */}
       <Dialog open={!!previewSource} onOpenChange={() => setPreviewSource(null)}>
         <DialogContent className="max-w-5xl max-h-[85vh] overflow-auto">
           <DialogHeader>
