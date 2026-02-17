@@ -575,7 +575,10 @@ export const SAMPLE_SRP_HTML = `<!DOCTYPE html>
   document.addEventListener('DOMContentLoaded',function(){
     var PER_PAGE=25;
     var currentPage=1;
-    var allListings=window.__ALL_LISTINGS__||[];
+    var allListingsRaw=window.__ALL_LISTINGS__||[];
+    var currentCity='{{city}}';
+    // Filter to only this city's listings
+    var allListings=allListingsRaw.filter(function(h){return h.city===currentCity;});
     var searchInput=document.getElementById('ajaxSearch');
     var container=document.getElementById('listingsContainer');
     var paginationEl=document.getElementById('pagination');
@@ -746,7 +749,10 @@ export const SAMPLE_CATEGORY_SRP_HTML = `<!DOCTYPE html>
   <script>
   document.addEventListener('DOMContentLoaded',function(){
     var PER_PAGE=25;var currentPage=1;
-    var allListings=window.__ALL_LISTINGS__||[];
+    var allListingsRaw=window.__ALL_LISTINGS__||[];
+    var currentCategory='{{category}}';
+    // Filter to only this category's listings
+    var allListings=allListingsRaw.filter(function(h){return h.category===currentCategory;});
     var searchInput=document.getElementById('catSearch');
     var grid=document.getElementById('cardsGrid');
     var paginationEl=document.getElementById('pagination');
