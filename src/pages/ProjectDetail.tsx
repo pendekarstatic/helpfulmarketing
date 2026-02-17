@@ -69,59 +69,91 @@ export default function ProjectDetail() {
       </header>
 
       <main className="container py-6">
-        <Tabs defaultValue="data" className="space-y-6">
-          <TabsList className="flex flex-wrap h-auto gap-1">
-            <TabsTrigger value="data" className="gap-1.5">
-              <Database className="h-4 w-4" /> Data Sources
-            </TabsTrigger>
-            <TabsTrigger value="templates" className="gap-1.5">
-              <FileCode className="h-4 w-4" /> Templates
-            </TabsTrigger>
-            <TabsTrigger value="custom-pages" className="gap-1.5">
-              <Home className="h-4 w-4" /> Custom Pages
-            </TabsTrigger>
-            <TabsTrigger value="pages" className="gap-1.5">
-              <FileText className="h-4 w-4" /> Pages
-            </TabsTrigger>
-            <TabsTrigger value="local-seo" className="gap-1.5">
-              <MapPin className="h-4 w-4" /> Local SEO
-            </TabsTrigger>
-            <TabsTrigger value="seo" className="gap-1.5">
-              <Search className="h-4 w-4" /> SEO
-            </TabsTrigger>
-            <TabsTrigger value="export" className="gap-1.5">
-              <Download className="h-4 w-4" /> Export
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-1.5">
-              <Settings className="h-4 w-4" /> Settings
-            </TabsTrigger>
-          </TabsList>
+        {project.mode === "local_seo" ? (
+          <Tabs defaultValue="local-seo" className="space-y-6">
+            <TabsList className="flex flex-wrap h-auto gap-1">
+              <TabsTrigger value="local-seo" className="gap-1.5">
+                <MapPin className="h-4 w-4" /> Local SEO Generator
+              </TabsTrigger>
+              <TabsTrigger value="custom-pages" className="gap-1.5">
+                <Home className="h-4 w-4" /> Custom Pages
+              </TabsTrigger>
+              <TabsTrigger value="pages" className="gap-1.5">
+                <FileText className="h-4 w-4" /> Generated Pages
+              </TabsTrigger>
+              <TabsTrigger value="export" className="gap-1.5">
+                <Download className="h-4 w-4" /> Export
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="gap-1.5">
+                <Settings className="h-4 w-4" /> Settings
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="data">
-            <DataSourcesTab projectId={project.id} />
-          </TabsContent>
-          <TabsContent value="templates">
-            <TemplatesTab projectId={project.id} projectMode={project.mode} />
-          </TabsContent>
-          <TabsContent value="custom-pages">
-            <CustomPagesTab projectId={project.id} />
-          </TabsContent>
-          <TabsContent value="pages">
-            <PagesTab projectId={project.id} />
-          </TabsContent>
-          <TabsContent value="local-seo">
-            <LocalSeoTab projectId={project.id} project={project} />
-          </TabsContent>
-          <TabsContent value="seo">
-            <SeoTab projectId={project.id} project={project} />
-          </TabsContent>
-          <TabsContent value="export">
-            <ExportTab projectId={project.id} project={project} />
-          </TabsContent>
-          <TabsContent value="settings">
-            <ProjectSettingsTab project={project} />
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="local-seo">
+              <LocalSeoTab projectId={project.id} project={project} />
+            </TabsContent>
+            <TabsContent value="custom-pages">
+              <CustomPagesTab projectId={project.id} />
+            </TabsContent>
+            <TabsContent value="pages">
+              <PagesTab projectId={project.id} />
+            </TabsContent>
+            <TabsContent value="export">
+              <ExportTab projectId={project.id} project={project} />
+            </TabsContent>
+            <TabsContent value="settings">
+              <ProjectSettingsTab project={project} />
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <Tabs defaultValue="data" className="space-y-6">
+            <TabsList className="flex flex-wrap h-auto gap-1">
+              <TabsTrigger value="data" className="gap-1.5">
+                <Database className="h-4 w-4" /> Data Sources
+              </TabsTrigger>
+              <TabsTrigger value="templates" className="gap-1.5">
+                <FileCode className="h-4 w-4" /> Templates
+              </TabsTrigger>
+              <TabsTrigger value="custom-pages" className="gap-1.5">
+                <Home className="h-4 w-4" /> Custom Pages
+              </TabsTrigger>
+              <TabsTrigger value="pages" className="gap-1.5">
+                <FileText className="h-4 w-4" /> Pages
+              </TabsTrigger>
+              <TabsTrigger value="seo" className="gap-1.5">
+                <Search className="h-4 w-4" /> SEO
+              </TabsTrigger>
+              <TabsTrigger value="export" className="gap-1.5">
+                <Download className="h-4 w-4" /> Export
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="gap-1.5">
+                <Settings className="h-4 w-4" /> Settings
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="data">
+              <DataSourcesTab projectId={project.id} />
+            </TabsContent>
+            <TabsContent value="templates">
+              <TemplatesTab projectId={project.id} projectMode={project.mode} />
+            </TabsContent>
+            <TabsContent value="custom-pages">
+              <CustomPagesTab projectId={project.id} />
+            </TabsContent>
+            <TabsContent value="pages">
+              <PagesTab projectId={project.id} />
+            </TabsContent>
+            <TabsContent value="seo">
+              <SeoTab projectId={project.id} project={project} />
+            </TabsContent>
+            <TabsContent value="export">
+              <ExportTab projectId={project.id} project={project} />
+            </TabsContent>
+            <TabsContent value="settings">
+              <ProjectSettingsTab project={project} />
+            </TabsContent>
+          </Tabs>
+        )}
       </main>
     </div>
   );

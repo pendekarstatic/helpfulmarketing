@@ -11,6 +11,7 @@ export default function PublicNav() {
 
   const links = [
     { label: "Features", href: "#features" },
+    { label: "Local SEO", href: "#local-seo" },
     { label: "How It Works", href: "#how-it-works" },
     { label: "FAQ", href: "#faq" },
     { label: "Docs", href: "/guide" },

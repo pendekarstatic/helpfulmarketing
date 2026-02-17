@@ -31,10 +31,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, MoreVertical, Archive, Copy, Trash2, FolderOpen, Globe, Layers, Zap, LogOut, ArrowLeft, Settings, BookOpen } from "lucide-react";
+import { Plus, MoreVertical, Archive, Copy, Trash2, FolderOpen, Globe, Layers, Zap, LogOut, ArrowLeft, Settings, BookOpen, MapPin } from "lucide-react";
 import GlobalSettingsDialog from "@/components/dashboard/GlobalSettingsDialog";
 
-type ProjectMode = "pseo" | "directory" | "hybrid";
+type ProjectMode = "pseo" | "directory" | "hybrid" | "local_seo";
 
 interface Project {
   id: string;
@@ -143,6 +143,7 @@ export default function Dashboard() {
       case "pseo": return <Zap className="h-4 w-4" />;
       case "directory": return <Layers className="h-4 w-4" />;
       case "hybrid": return <Globe className="h-4 w-4" />;
+      case "local_seo": return <MapPin className="h-4 w-4" />;
     }
   };
 
@@ -151,6 +152,7 @@ export default function Dashboard() {
       case "pseo": return "bg-primary/10 text-primary";
       case "directory": return "bg-accent/10 text-accent";
       case "hybrid": return "bg-warning/10 text-warning";
+      case "local_seo": return "bg-success/10 text-success";
     }
   };
 
@@ -213,7 +215,7 @@ export default function Dashboard() {
                     </div>
                     <div className="space-y-2">
                       <Label>Mode</Label>
-                      <Select name="mode" defaultValue="directory">
+                    <Select name="mode" defaultValue="directory">
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -226,6 +228,9 @@ export default function Dashboard() {
                           </SelectItem>
                           <SelectItem value="hybrid">
                             <span className="flex items-center gap-2"><Globe className="h-4 w-4" /> Hybrid</span>
+                          </SelectItem>
+                          <SelectItem value="local_seo">
+                            <span className="flex items-center gap-2"><MapPin className="h-4 w-4" /> Local SEO</span>
                           </SelectItem>
                         </SelectContent>
                       </Select>

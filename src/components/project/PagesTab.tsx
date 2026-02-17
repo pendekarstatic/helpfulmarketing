@@ -383,8 +383,10 @@ export default function PagesTab({ projectId }: PagesTabProps) {
   });
 
   const openPreviewNewTab = (html: string, title: string) => {
-    const w = window.open("", "_blank");
-    if (w) { w.document.write(html); w.document.close(); w.document.title = title; }
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
   };
 
   const templateNames = new Map<string, string>();
