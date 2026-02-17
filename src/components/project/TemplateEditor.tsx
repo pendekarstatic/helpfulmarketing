@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Save, Eye, Code } from "lucide-react";
 
@@ -98,14 +99,16 @@ export default function TemplateEditor({ template, projectId, onBack }: Template
         </div>
       </div>
 
-      {/* Variable chips */}
+      {/* Variable chips - scrollable, max 5 lines */}
       {availableVars.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          <span className="text-xs text-muted-foreground py-1">Available variables:</span>
-          {availableVars.map((v) => (
-            <code key={v} className="text-xs bg-muted px-2 py-1 rounded font-mono">{`{{${v}}}`}</code>
-          ))}
-        </div>
+        <ScrollArea className="max-h-[7.5rem]">
+          <div className="flex flex-wrap gap-1.5">
+            <span className="text-xs text-muted-foreground py-1">Available variables:</span>
+            {availableVars.map((v) => (
+              <code key={v} className="text-xs bg-muted px-2 py-1 rounded font-mono">{`{{${v}}}`}</code>
+            ))}
+          </div>
+        </ScrollArea>
       )}
 
       {/* SEO Settings */}

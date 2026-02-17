@@ -31,6 +31,30 @@ export default function ExportTab({ projectId, project }: ExportTabProps) {
 
   const publishedPages = pages.filter((p) => p.status === "published");
   const allPages = pages;
+  const urlFormat = project.url_format || "pretty_slash";
+  const maxUrls = Math.min(project.sitemap_max_urls || 50000, 50000);
+  const separateSitemaps = project.sitemap_separate ?? true;
+
+  const getExportPath = (page: any): string => {
+    const raw = (page.url_path || `/${page.slug}`).replace(/^\//, "");
+    const clean = raw.replace(/\.html$/, "").replace(/\/index\.html$/, "").replace(/\/index$/, "").replace(/\/$/, "");
+    switch (urlFormat) {
+      case "pretty_slash":
+      case "pretty_no_slash":
+      case "directory":
+        return `${clean}/index.html`;
+      case "html":
+        return `${clean}.html`;
+      default:
+        return `${clean}/index.html`;
+    }
+  };
+
+  const getDomain = (): string => {
+    if (project.custom_domain) return `https://${project.custom_domain}`;
+    if (project.slug) return `https://${project.slug}.com`;
+    return "https://example.com";
+  };
 
   const exportHtmlZip = async () => {
     setExporting("html");
@@ -43,48 +67,104 @@ export default function ExportTab({ projectId, project }: ExportTabProps) {
         return;
       }
 
-      // Add each page as HTML file
       for (const page of pagesToExport) {
-        const path = (page.url_path || `/${page.slug}`).replace(/^\//, "");
-        zip.file(`${path}/index.html`, page.generated_html || "");
+        zip.file(getExportPath(page), page.generated_html || "");
       }
 
-      // Generate index.html listing
+      // Index HTML
       const indexHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${project.site_name || project.name}</title>
+  ${project.favicon_url ? `<link rel="icon" href="${project.favicon_url}" />` : ""}
+  ${project.og_image_url ? `<meta property="og:image" content="${project.og_image_url}" />` : ""}
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; background: #fafafa; color: #1a1a2e; padding: 2rem; }
+    body { font-family: ${project.font_family || "system-ui"}, sans-serif; background: ${project.theme === "dark" ? "#1a1a2e" : "#fafafa"}; color: ${project.theme === "dark" ? "#e2e8f0" : "#1a1a2e"}; padding: 2rem; }
     .container { max-width: 800px; margin: 0 auto; }
     h1 { font-size: 2rem; margin-bottom: 1.5rem; }
     .links { display: flex; flex-direction: column; gap: 0.5rem; }
-    a { color: #5b4fe0; text-decoration: none; padding: 0.75rem 1rem; background: white; border-radius: 8px; border: 1px solid #e2e8f0; }
-    a:hover { background: #f5f3ff; }
+    a { color: ${project.primary_color || "#5b4fe0"}; text-decoration: none; padding: 0.75rem 1rem; background: ${project.theme === "dark" ? "#16213e" : "white"}; border-radius: 8px; border: 1px solid ${project.theme === "dark" ? "#2d3748" : "#e2e8f0"}; }
+    a:hover { opacity: 0.85; }
   </style>
+  ${project.analytics_code || ""}
 </head>
 <body>
+  ${project.use_header_footer && project.header_content ? project.header_content : ""}
   <div class="container">
     <h1>${project.site_name || project.name}</h1>
     <div class="links">
-      ${pagesToExport.map((p) => `<a href="./${(p.url_path || `/${p.slug}`).replace(/^\//, "")}/index.html">${p.title}</a>`).join("\n      ")}
+      ${pagesToExport.map((p) => `<a href="./${getExportPath(p)}">${p.title}</a>`).join("\n      ")}
     </div>
   </div>
+  ${project.use_header_footer && project.footer_content ? project.footer_content : ""}
 </body>
 </html>`;
       zip.file("index.html", indexHtml);
 
-      // Generate sitemap
-      const domain = project.slug ? `https://${project.slug}.com` : "https://example.com";
-      const sitemap = generateSitemap(pagesToExport, domain);
-      zip.file("sitemap.xml", sitemap);
+      const domain = getDomain();
+
+      // Generate sitemaps
+      if (separateSitemaps) {
+        const pagesToSitemap = (publishedPages.length > 0 ? publishedPages : allPages).slice(0, maxUrls);
+        
+        // Categorize pages
+        const categories: Record<string, any[]> = {};
+        const uncategorized: any[] = [];
+        pagesToSitemap.forEach((p) => {
+          const d = p.data as any;
+          const cat = d?.category || d?.Category;
+          if (cat) {
+            if (!categories[cat]) categories[cat] = [];
+            categories[cat].push(p);
+          } else {
+            uncategorized.push(p);
+          }
+        });
+
+        // Main sitemap index
+        const sitemapFiles: string[] = [];
+        
+        // Category sitemaps
+        Object.entries(categories).forEach(([cat, catPages]) => {
+          const catSlug = cat.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+          const filename = `sitemap-${catSlug}.xml`;
+          zip.file(filename, generateSitemap(catPages, domain));
+          sitemapFiles.push(filename);
+        });
+
+        // Uncategorized / general
+        if (uncategorized.length > 0) {
+          zip.file("sitemap-pages.xml", generateSitemap(uncategorized, domain));
+          sitemapFiles.push("sitemap-pages.xml");
+        }
+
+        // If no categories found, just one sitemap
+        if (sitemapFiles.length === 0) {
+          zip.file("sitemap-pages.xml", generateSitemap(pagesToSitemap, domain));
+          sitemapFiles.push("sitemap-pages.xml");
+        }
+
+        // Sitemap index
+        const sitemapIndex = `<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${sitemapFiles.map((f) => `  <sitemap>\n    <loc>${domain}/${f}</loc>\n    <lastmod>${new Date().toISOString().split("T")[0]}</lastmod>\n  </sitemap>`).join("\n")}
+</sitemapindex>`;
+        zip.file("sitemap.xml", sitemapIndex);
+      } else {
+        const pagesToSitemap = (publishedPages.length > 0 ? publishedPages : allPages).slice(0, maxUrls);
+        zip.file("sitemap.xml", generateSitemap(pagesToSitemap, domain));
+      }
+
+      // robots.txt
+      const robotsTxt = project.robots_txt || `User-agent: *\nAllow: /\nSitemap: ${domain}/sitemap.xml`;
+      zip.file("robots.txt", robotsTxt);
 
       const blob = await zip.generateAsync({ type: "blob" });
       saveAs(blob, `${project.slug || "export"}-pages.zip`);
-      toast({ title: "Export complete!", description: `${pagesToExport.length} pages exported.` });
+      toast({ title: "Export complete!", description: `${pagesToExport.length} pages exported with sitemaps.` });
     } finally {
       setExporting(null);
     }
@@ -92,12 +172,57 @@ export default function ExportTab({ projectId, project }: ExportTabProps) {
 
   const exportSitemap = () => {
     setExporting("sitemap");
-    const domain = project.slug ? `https://${project.slug}.com` : "https://example.com";
-    const pagesToExport = publishedPages.length > 0 ? publishedPages : allPages;
-    const sitemap = generateSitemap(pagesToExport, domain);
-    const blob = new Blob([sitemap], { type: "application/xml" });
-    saveAs(blob, "sitemap.xml");
-    toast({ title: "Sitemap exported!" });
+    const domain = getDomain();
+    const pagesToExport = (publishedPages.length > 0 ? publishedPages : allPages).slice(0, maxUrls);
+
+    if (separateSitemaps) {
+      // Export as zip with multiple sitemaps
+      const zip = new JSZip();
+      const categories: Record<string, any[]> = {};
+      const uncategorized: any[] = [];
+      pagesToExport.forEach((p) => {
+        const d = p.data as any;
+        const cat = d?.category || d?.Category;
+        if (cat) {
+          if (!categories[cat]) categories[cat] = [];
+          categories[cat].push(p);
+        } else {
+          uncategorized.push(p);
+        }
+      });
+
+      const sitemapFiles: string[] = [];
+      Object.entries(categories).forEach(([cat, catPages]) => {
+        const catSlug = cat.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        const filename = `sitemap-${catSlug}.xml`;
+        zip.file(filename, generateSitemap(catPages, domain));
+        sitemapFiles.push(filename);
+      });
+      if (uncategorized.length > 0) {
+        zip.file("sitemap-pages.xml", generateSitemap(uncategorized, domain));
+        sitemapFiles.push("sitemap-pages.xml");
+      }
+      if (sitemapFiles.length === 0) {
+        zip.file("sitemap-pages.xml", generateSitemap(pagesToExport, domain));
+        sitemapFiles.push("sitemap-pages.xml");
+      }
+
+      const sitemapIndex = `<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${sitemapFiles.map((f) => `  <sitemap>\n    <loc>${domain}/${f}</loc>\n    <lastmod>${new Date().toISOString().split("T")[0]}</lastmod>\n  </sitemap>`).join("\n")}
+</sitemapindex>`;
+      zip.file("sitemap.xml", sitemapIndex);
+
+      zip.generateAsync({ type: "blob" }).then((blob) => {
+        saveAs(blob, "sitemaps.zip");
+        toast({ title: "Sitemaps exported!", description: `${sitemapFiles.length + 1} sitemap files.` });
+      });
+    } else {
+      const sitemap = generateSitemap(pagesToExport, domain);
+      const blob = new Blob([sitemap], { type: "application/xml" });
+      saveAs(blob, "sitemap.xml");
+      toast({ title: "Sitemap exported!" });
+    }
     setExporting(null);
   };
 
@@ -132,13 +257,13 @@ export default function ExportTab({ projectId, project }: ExportTabProps) {
               <Code className="h-6 w-6" />
             </div>
             <CardTitle className="text-base">Static HTML Package</CardTitle>
-            <CardDescription>ZIP file with all HTML pages, index, and sitemap</CardDescription>
+            <CardDescription>ZIP with HTML pages, index, sitemaps, and robots.txt</CardDescription>
           </CardHeader>
           <CardContent>
             <Button className="w-full" onClick={exportHtmlZip} disabled={exporting === "html"}>
               <Download className="h-4 w-4 mr-1" /> {exporting === "html" ? "Exporting..." : "Download ZIP"}
             </Button>
-            <p className="text-xs text-muted-foreground mt-2">{allPages.length} pages · Ready to host anywhere</p>
+            <p className="text-xs text-muted-foreground mt-2">{allPages.length} pages · {separateSitemaps ? "Separate sitemaps" : "Single sitemap"} · Max {maxUrls} URLs</p>
           </CardContent>
         </Card>
 
@@ -147,14 +272,14 @@ export default function ExportTab({ projectId, project }: ExportTabProps) {
             <div className="h-12 w-12 rounded-lg bg-accent/10 flex items-center justify-center text-accent mb-2">
               <Globe className="h-6 w-6" />
             </div>
-            <CardTitle className="text-base">XML Sitemap</CardTitle>
-            <CardDescription>Auto-generated sitemap.xml for search engines</CardDescription>
+            <CardTitle className="text-base">XML Sitemap{separateSitemaps ? "s" : ""}</CardTitle>
+            <CardDescription>{separateSitemaps ? "Sitemap index + category sitemaps" : "Single sitemap.xml"}</CardDescription>
           </CardHeader>
           <CardContent>
             <Button className="w-full" variant="outline" onClick={exportSitemap} disabled={exporting === "sitemap"}>
-              <Download className="h-4 w-4 mr-1" /> Download Sitemap
+              <Download className="h-4 w-4 mr-1" /> Download Sitemap{separateSitemaps ? "s" : ""}
             </Button>
-            <p className="text-xs text-muted-foreground mt-2">{publishedPages.length || allPages.length} URLs included</p>
+            <p className="text-xs text-muted-foreground mt-2">{publishedPages.length || allPages.length} URLs · Max {maxUrls}</p>
           </CardContent>
         </Card>
 

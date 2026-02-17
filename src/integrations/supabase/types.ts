@@ -162,7 +162,12 @@ export type Database = {
       }
       projects: {
         Row: {
+          ai_model: string | null
+          analytics_code: string | null
+          brand_guidelines: string | null
           created_at: string
+          custom_domain: string | null
+          favicon_url: string | null
           font_family: string | null
           footer_content: string | null
           header_content: string | null
@@ -171,15 +176,29 @@ export type Database = {
           logo_url: string | null
           mode: Database["public"]["Enums"]["project_mode"]
           name: string
+          og_image_url: string | null
+          openrouter_api_key: string | null
           primary_color: string | null
+          robots_txt: string | null
           secondary_color: string | null
           site_name: string | null
+          sitemap_max_urls: number | null
+          sitemap_separate: boolean | null
           slug: string | null
+          straico_api_key: string | null
+          theme: string | null
           updated_at: string
+          url_format: string | null
+          use_header_footer: boolean | null
           user_id: string
         }
         Insert: {
+          ai_model?: string | null
+          analytics_code?: string | null
+          brand_guidelines?: string | null
           created_at?: string
+          custom_domain?: string | null
+          favicon_url?: string | null
           font_family?: string | null
           footer_content?: string | null
           header_content?: string | null
@@ -188,15 +207,29 @@ export type Database = {
           logo_url?: string | null
           mode?: Database["public"]["Enums"]["project_mode"]
           name: string
+          og_image_url?: string | null
+          openrouter_api_key?: string | null
           primary_color?: string | null
+          robots_txt?: string | null
           secondary_color?: string | null
           site_name?: string | null
+          sitemap_max_urls?: number | null
+          sitemap_separate?: boolean | null
           slug?: string | null
+          straico_api_key?: string | null
+          theme?: string | null
           updated_at?: string
+          url_format?: string | null
+          use_header_footer?: boolean | null
           user_id: string
         }
         Update: {
+          ai_model?: string | null
+          analytics_code?: string | null
+          brand_guidelines?: string | null
           created_at?: string
+          custom_domain?: string | null
+          favicon_url?: string | null
           font_family?: string | null
           footer_content?: string | null
           header_content?: string | null
@@ -205,11 +238,20 @@ export type Database = {
           logo_url?: string | null
           mode?: Database["public"]["Enums"]["project_mode"]
           name?: string
+          og_image_url?: string | null
+          openrouter_api_key?: string | null
           primary_color?: string | null
+          robots_txt?: string | null
           secondary_color?: string | null
           site_name?: string | null
+          sitemap_max_urls?: number | null
+          sitemap_separate?: boolean | null
           slug?: string | null
+          straico_api_key?: string | null
+          theme?: string | null
           updated_at?: string
+          url_format?: string | null
+          use_header_footer?: boolean | null
           user_id?: string
         }
         Relationships: []

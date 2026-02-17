@@ -19,6 +19,33 @@ interface DataSourcesTabProps {
   projectId: string;
 }
 
+/**
+ * Parse a Google Sheets URL and return a CSV export URL.
+ * Supports various formats:
+ * - https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit?gid=SHEET_ID#gid=SHEET_ID
+ * - https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit?usp=sharing
+ * - https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/pub?output=csv
+ * 
+ * Extracts the sheet gid from the URL if present.
+ */
+function getGoogleSheetCsvUrl(url: string): string {
+  if (!url.includes("docs.google.com/spreadsheets")) return url;
+  
+  const idMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (!idMatch) return url;
+  
+  const spreadsheetId = idMatch[1];
+  let csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv`;
+  
+  // Extract gid from ?gid=XXX or #gid=XXX
+  const gidMatch = url.match(/[?&#]gid=(\d+)/);
+  if (gidMatch) {
+    csvUrl += `&gid=${gidMatch[1]}`;
+  }
+  
+  return csvUrl;
+}
+
 export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -92,12 +119,9 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
       if (source.source_type === "published_url") {
         const url = source.config?.url;
         if (!url) throw new Error("No URL configured");
-        let csvUrl = url;
-        if (url.includes("docs.google.com/spreadsheets")) {
-          const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-          if (match) csvUrl = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv`;
-        }
+        const csvUrl = getGoogleSheetCsvUrl(url);
         const res = await fetch(csvUrl);
+        if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
         const text = await res.text();
         const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
         const { error } = await supabase
@@ -138,13 +162,12 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
     const form = new FormData(e.currentTarget);
     const url = form.get("url") as string;
     const name = form.get("name") as string || "Google Sheet";
-    let csvUrl = url;
-    if (url.includes("docs.google.com/spreadsheets")) {
-      const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-      if (match) csvUrl = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv`;
-    }
+    const csvUrl = getGoogleSheetCsvUrl(url);
     fetch(csvUrl)
-      .then((res) => res.text())
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
+        return res.text();
+      })
       .then((text) => {
         const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
         createSource.mutate({ name, source_type: "published_url", config: { url }, cached_data: parsed.data });
@@ -245,9 +268,11 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
                       <Input name="name" placeholder="My Sheet" />
                     </div>
                     <div className="space-y-2">
-                      <Label>Published Sheet URL</Label>
+                      <Label>Google Sheet URL</Label>
                       <Input name="url" required placeholder="https://docs.google.com/spreadsheets/d/..." />
-                      <p className="text-xs text-muted-foreground">Paste a public Google Sheets URL or any CSV URL</p>
+                      <p className="text-xs text-muted-foreground">
+                        Paste any Google Sheets URL (edit, sharing, or published). The sheet tab (gid) will be auto-detected from the URL.
+                      </p>
                     </div>
                     <DialogFooter>
                       <Button type="submit" disabled={createSource.isPending}>

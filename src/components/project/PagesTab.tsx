@@ -10,7 +10,6 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, FileText, Eye, Trash2, Wand2, Edit, Save, ChevronDown, ChevronUp } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
@@ -67,6 +66,35 @@ export default function PagesTab({ projectId }: PagesTabProps) {
     },
   });
 
+  // Fetch project settings for URL format & header/footer
+  const { data: project } = useQuery({
+    queryKey: ["project", projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("id", projectId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const formatUrl = (path: string): string => {
+    const fmt = (project as any)?.url_format || "pretty_slash";
+    // Clean the path
+    let clean = path.replace(/\/+/g, "/").replace(/^\//, "");
+    clean = clean.replace(/\.html$/, "").replace(/\/index$/, "").replace(/\/$/, "");
+    
+    switch (fmt) {
+      case "pretty_slash": return `/${clean}/`;
+      case "pretty_no_slash": return `/${clean}`;
+      case "html": return `/${clean}.html`;
+      case "directory": return `/${clean}/index.html`;
+      default: return `/${clean}/`;
+    }
+  };
+
   const generatePages = useMutation({
     mutationFn: async (templateId: string) => {
       setGenerating(true);
@@ -78,31 +106,42 @@ export default function PagesTab({ projectId }: PagesTabProps) {
       }
       if (allRows.length === 0) throw new Error("No data available. Add a data source first.");
 
+      const useHF = (project as any)?.use_header_footer;
+      const headerHtml = (project as any)?.header_content || "";
+      const footerHtml = (project as any)?.footer_content || "";
+
       const pagesToInsert = allRows.map((row) => {
         let html = template.html_content;
-        const title = row.title || row.name || row.Name || row.Title || "Untitled";
-        const slug = (row.slug || title).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        // Use first non-empty value from common title fields, fallback to first column value
+        const title = row.title || row.name || row.Name || row.Title || 
+                      Object.values(row).find((v) => typeof v === "string" && (v as string).trim()) || "Untitled";
+        const slug = (row.slug || String(title)).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
+        // Replace variables, using empty string for missing data (default behavior)
         Object.entries(row).forEach(([key, value]) => {
-          html = html.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(value || ""));
+          html = html.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(value ?? ""));
         });
 
         let metaTitle = template.meta_title_pattern || "{{title}}";
         let metaDesc = template.meta_description_pattern || "{{description}}";
         Object.entries(row).forEach(([key, value]) => {
-          metaTitle = metaTitle.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(value || ""));
-          metaDesc = metaDesc.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(value || ""));
+          metaTitle = metaTitle.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(value ?? ""));
+          metaDesc = metaDesc.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(value ?? ""));
         });
+        // Replace remaining unresolved variables with empty string
+        metaTitle = metaTitle.replace(/\{\{[^}]+\}\}/g, "");
+        metaDesc = metaDesc.replace(/\{\{[^}]+\}\}/g, "");
 
         let urlPath = template.url_pattern || "/{{slug}}";
         Object.entries(row).forEach(([key, value]) => {
-          urlPath = urlPath.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-"));
+          urlPath = urlPath.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-"));
         });
         urlPath = urlPath.replace(/\{\{slug\}\}/g, slug);
+        urlPath = formatUrl(urlPath);
 
         // JSON-LD structured data
         const schemaType = template.schema_type || "Thing";
-        const schemaMarkup = generateJsonLd(schemaType, row, title, metaDesc);
+        const schemaMarkup = generateJsonLd(schemaType, row, String(title), metaDesc);
 
         // Inject JSON-LD + breadcrumbs into HTML
         const breadcrumbHtml = `<nav aria-label="breadcrumb" style="font-size:0.8rem;color:#666;margin-bottom:1rem;"><a href="/" style="color:#5b4fe0;text-decoration:none;">Home</a> › ${row.category ? `<a href="/category/${(row.category || "").toLowerCase().replace(/[^a-z0-9]+/g, "-")}" style="color:#5b4fe0;text-decoration:none;">${row.category}</a> › ` : ""}${title}</nav>`;
@@ -111,15 +150,21 @@ export default function PagesTab({ projectId }: PagesTabProps) {
         html = html.replace("<body>", `<body>\n${jsonLdScript}`);
         html = html.replace(/<div class="container">/i, `<div class="container">\n${breadcrumbHtml}`);
 
+        // Inject shared header/footer if enabled
+        if (useHF) {
+          if (headerHtml) html = html.replace("<body>", `<body>\n${headerHtml}`);
+          if (footerHtml) html = html.replace("</body>", `${footerHtml}\n</body>`);
+        }
+
         return {
           project_id: projectId,
           template_id: templateId,
-          title,
+          title: String(title),
           slug,
           url_path: urlPath,
           status: "draft" as const,
           data: row as unknown as Json,
-          meta_title: metaTitle,
+          meta_title: metaTitle || String(title),
           meta_description: metaDesc,
           generated_html: html,
           schema_markup: schemaMarkup as unknown as Json,
