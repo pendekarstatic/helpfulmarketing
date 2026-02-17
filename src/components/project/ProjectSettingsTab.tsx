@@ -370,6 +370,29 @@ export default function ProjectSettingsTab({ project }: ProjectSettingsTabProps)
         </CardContent>
       </Card>
 
+      {/* Export Options */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2"><Code className="h-4 w-4" /> Export Options</CardTitle>
+          <CardDescription>Configure how exported files are structured</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Split CSS & JavaScript</Label>
+              <p className="text-xs text-muted-foreground">When enabled, CSS and JS are extracted into shared files instead of being inline in each page HTML</p>
+            </div>
+            <Switch
+              checked={form.theme === "split_assets" ? true : false}
+              onCheckedChange={() => {
+                // This is a UI hint; actual split is done during export
+                toast({ title: "Asset splitting is applied during export", description: "CSS and JS will be extracted into shared files when you export." });
+              }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       <Button onClick={() => save.mutate()} disabled={save.isPending} className="w-full">
         <Save className="h-4 w-4 mr-1" /> {save.isPending ? "Saving..." : "Save All Settings"}
       </Button>

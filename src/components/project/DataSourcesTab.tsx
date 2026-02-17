@@ -19,30 +19,16 @@ interface DataSourcesTabProps {
   projectId: string;
 }
 
-/**
- * Parse a Google Sheets URL and return a CSV export URL.
- * Supports various formats:
- * - https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit?gid=SHEET_ID#gid=SHEET_ID
- * - https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit?usp=sharing
- * - https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/pub?output=csv
- * 
- * Extracts the sheet gid from the URL if present.
- */
 function getGoogleSheetCsvUrl(url: string): string {
   if (!url.includes("docs.google.com/spreadsheets")) return url;
-  
   const idMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
   if (!idMatch) return url;
-  
   const spreadsheetId = idMatch[1];
   let csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv`;
-  
-  // Extract gid from ?gid=XXX or #gid=XXX
   const gidMatch = url.match(/[?&#]gid=(\d+)/);
   if (gidMatch) {
     csvUrl += `&gid=${gidMatch[1]}`;
   }
-  
   return csvUrl;
 }
 
@@ -124,16 +110,19 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
         if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
         const text = await res.text();
         const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+        if (parsed.data.length === 0) throw new Error("No data found in sheet. Make sure the sheet is public.");
         const { error } = await supabase
           .from("data_sources")
           .update({ cached_data: parsed.data as unknown as Json, last_synced_at: new Date().toISOString() })
           .eq("id", source.id);
         if (error) throw error;
+        return parsed.data.length;
       }
+      throw new Error("Refresh not supported for this source type");
     },
-    onSuccess: () => {
+    onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ["data-sources", projectId] });
-      toast({ title: "Data refreshed!" });
+      toast({ title: `Data refreshed! ${count} rows loaded.` });
     },
     onError: (err: any) => toast({ title: "Refresh failed", description: err.message, variant: "destructive" }),
   });
@@ -165,11 +154,12 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
     const csvUrl = getGoogleSheetCsvUrl(url);
     fetch(csvUrl)
       .then((res) => {
-        if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
+        if (!res.ok) throw new Error(`Failed to fetch: ${res.status}. Make sure the Google Sheet is published/public.`);
         return res.text();
       })
       .then((text) => {
         const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+        if (parsed.data.length === 0) throw new Error("No data found. Make sure the sheet has data and is public.");
         createSource.mutate({ name, source_type: "published_url", config: { url }, cached_data: parsed.data });
       })
       .catch((err) => toast({ title: "Fetch failed", description: err.message, variant: "destructive" }));
@@ -335,7 +325,7 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
                     <div className="flex gap-1">
                       {rowCount > 0 && (
                         <>
-                          <Button variant="ghost" size="icon" title="Preview" onClick={() => setPreviewSource(source.id)}>
+                          <Button variant="ghost" size="icon" title="Preview Data" onClick={() => setPreviewSource(source.id)}>
                             <Eye className="h-4 w-4" />
                           </Button>
                           <Button variant="ghost" size="icon" title="Column Mapping" onClick={() => { setMappingSource(source.id); setColumnMap((source.column_mapping as Record<string, string>) || {}); }}>
@@ -343,8 +333,9 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
                           </Button>
                         </>
                       )}
-                      {source.source_type === "published_url" && (
-                        <Button variant="ghost" size="icon" title="Refresh" onClick={() => refreshSource.mutate(source)} disabled={refreshSource.isPending}>
+                      {/* Re-fetch / Refresh for all data source types with URLs */}
+                      {(source.source_type === "published_url") && (
+                        <Button variant="ghost" size="icon" title="Re-fetch data from source" onClick={() => refreshSource.mutate(source)} disabled={refreshSource.isPending}>
                           <RefreshCw className={`h-4 w-4 ${refreshSource.isPending ? "animate-spin" : ""}`} />
                         </Button>
                       )}
@@ -433,7 +424,14 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
       <Dialog open={!!previewSource} onOpenChange={() => setPreviewSource(null)}>
         <DialogContent className="max-w-5xl max-h-[85vh] overflow-auto">
           <DialogHeader>
-            <DialogTitle>Data Preview — {previewData?.name}</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Data Preview — {previewData?.name} ({previewRows.length} rows)</DialogTitle>
+              {previewData?.source_type === "published_url" && (
+                <Button variant="outline" size="sm" onClick={() => previewData && refreshSource.mutate(previewData)} disabled={refreshSource.isPending}>
+                  <RefreshCw className={`h-3 w-3 mr-1 ${refreshSource.isPending ? "animate-spin" : ""}`} /> Re-fetch
+                </Button>
+              )}
+            </div>
           </DialogHeader>
           {previewRows.length > 0 ? (
             <div className="rounded-md border overflow-auto">
@@ -453,7 +451,7 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
                       <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
                       {previewColumns.map((col) => (
                         <TableCell key={col} className="whitespace-nowrap max-w-[200px] truncate text-sm">
-                          {row[col]}
+                          {row[col] ?? ""}
                         </TableCell>
                       ))}
                       <TableCell>
@@ -472,7 +470,7 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
               </Table>
             </div>
           ) : (
-            <p className="text-muted-foreground py-8 text-center">No data available</p>
+            <p className="text-muted-foreground py-8 text-center">No data available. Try re-fetching the data source.</p>
           )}
           {previewRows.length > 100 && (
             <p className="text-xs text-muted-foreground text-center">Showing first 100 of {previewRows.length} rows</p>
