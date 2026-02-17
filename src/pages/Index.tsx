@@ -18,6 +18,9 @@ export default function Index() {
             <Button variant="ghost" size="sm" onClick={() => navigate("/guide")}>
               Docs
             </Button>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/tools/spintax")}>
+              Tools
+            </Button>
             <Button size="sm" onClick={() => navigate(user ? "/dashboard" : "/auth")}>
               {user ? "Open App" : "Get Started"}
             </Button>
