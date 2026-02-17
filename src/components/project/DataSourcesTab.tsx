@@ -141,7 +141,7 @@ export default function DataSourcesTab({ projectId }: DataSourcesTabProps) {
           cached_data: results.data,
         });
       },
-      error: (err) => toast({ title: "Parse error", description: err.message, variant: "destructive" }),
+      error: () => toast({ title: "Parse error", description: "Failed to parse CSV file. Please ensure it's properly formatted with headers.", variant: "destructive" }),
     });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
