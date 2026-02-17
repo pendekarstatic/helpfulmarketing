@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Database, FileCode, FileText, Search, Download, Settings, Home, MapPin } from "lucide-react";
+import { ArrowLeft, Database, FileCode, FileText, Search, Download, Settings, Home } from "lucide-react";
 import DataSourcesTab from "@/components/project/DataSourcesTab";
 import TemplatesTab from "@/components/project/TemplatesTab";
 import CustomPagesTab from "@/components/project/CustomPagesTab";
@@ -13,7 +13,6 @@ import PagesTab from "@/components/project/PagesTab";
 import SeoTab from "@/components/project/SeoTab";
 import ExportTab from "@/components/project/ExportTab";
 import ProjectSettingsTab from "@/components/project/ProjectSettingsTab";
-import LocalSeoTab from "@/components/project/LocalSeoTab";
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -70,16 +69,19 @@ export default function ProjectDetail() {
 
       <main className="container py-6">
         {project.mode === "local_seo" ? (
-          <Tabs defaultValue="local-seo" className="space-y-6">
+          <Tabs defaultValue="templates" className="space-y-6">
             <TabsList className="flex flex-wrap h-auto gap-1">
-              <TabsTrigger value="local-seo" className="gap-1.5">
-                <MapPin className="h-4 w-4" /> Local SEO Generator
+              <TabsTrigger value="templates" className="gap-1.5">
+                <FileCode className="h-4 w-4" /> Templates
               </TabsTrigger>
               <TabsTrigger value="custom-pages" className="gap-1.5">
                 <Home className="h-4 w-4" /> Custom Pages
               </TabsTrigger>
               <TabsTrigger value="pages" className="gap-1.5">
-                <FileText className="h-4 w-4" /> Generated Pages
+                <FileText className="h-4 w-4" /> Pages
+              </TabsTrigger>
+              <TabsTrigger value="seo" className="gap-1.5">
+                <Search className="h-4 w-4" /> SEO
               </TabsTrigger>
               <TabsTrigger value="export" className="gap-1.5">
                 <Download className="h-4 w-4" /> Export
@@ -89,14 +91,17 @@ export default function ProjectDetail() {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="local-seo">
-              <LocalSeoTab projectId={project.id} project={project} />
+            <TabsContent value="templates">
+              <TemplatesTab projectId={project.id} projectMode={project.mode} />
             </TabsContent>
             <TabsContent value="custom-pages">
               <CustomPagesTab projectId={project.id} />
             </TabsContent>
             <TabsContent value="pages">
               <PagesTab projectId={project.id} />
+            </TabsContent>
+            <TabsContent value="seo">
+              <SeoTab projectId={project.id} project={project} />
             </TabsContent>
             <TabsContent value="export">
               <ExportTab projectId={project.id} project={project} />
